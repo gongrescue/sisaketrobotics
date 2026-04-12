@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  # ── MongoDB ────────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: sisaket_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: sisaket_robotics
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"          # expose only if you need local Compass access
+    networks:
+      - sisaket_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (Node.js / Express) ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sisaket_backend
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      MONGODB_URI: mongodb://mongodb:27017/sisaket_robotics
+      JWT_SECRET: ${JWT_SECRET:-sisaket_robotics_2026_change_me_in_production}
+      JWT_EXPIRES_IN: 24h
+      NODE_ENV: ${NODE_ENV:-production}
+      FRONTEND_URL: http://localhost
+    networks:
+      - sisaket_network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── Frontend (Nginx) ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sisaket_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - sisaket_network
+
+# ── Volumes ────────────────────────────────────────────────────────────────
+volumes:
+  mongodb_data:
+    name: sisaket_mongodb_data
+
+# ── Networks ───────────────────────────────────────────────────────────────
+networks:
+  sisaket_network:
+    name: sisaket_network
+    driver: bridge

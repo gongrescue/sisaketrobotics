@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ศรีสะเกษโรโบติกส์ 2026 - ระบบรายงานผลคะแนน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ═══ NAVBAR ═══ -->
+<nav class="navbar" id="navbar">
+  <div class="nav-container">
+    <div class="nav-brand" onclick="navigate('home')">
+      <div class="nav-logo">🤖</div>
+      <div class="nav-title">
+        <span class="nav-title-main">ศรีสะเกษโรโบติกส์</span>
+        <span class="nav-title-sub">2026 · ระบบรายงานผลคะแนน</span>
+      </div>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a class="nav-link active" onclick="navigate('home')" data-page="home">🏠 หน้าหลัก</a>
+      <a class="nav-link" onclick="navigate('competitions')" data-page="competitions">🏆 ประเภทการแข่งขัน</a>
+      <a class="nav-link" onclick="navigate('leaderboard')" data-page="leaderboard">📊 ตารางคะแนน</a>
+      <a class="nav-link" id="adminNavLink" onclick="navigate('admin')" data-page="admin" style="display:none">⚙️ จัดการ</a>
+      <a class="nav-link" id="loginNavLink" onclick="navigate('login')">🔐 เข้าสู่ระบบ</a>
+      <a class="nav-link" id="logoutNavLink" onclick="logout()" style="display:none">🚪 ออก</a>
+    </div>
+    <button class="hamburger" id="hamburger" onclick="toggleMenu()">☰</button>
+  </div>
+</nav>
+
+<!-- ═══ PAGES ═══ -->
+<main class="main-content">
+
+  <!-- HOME PAGE -->
+  <div id="page-home" class="page active">
+    <div class="hero">
+      <div class="hero-content">
+        <div class="hero-badge">📅 27-28 มิถุนายน พ.ศ. 2569</div>
+        <h1 class="hero-title">ศรีสะเกษโรโบติกส์<br><span class="hero-highlight">Competition 2026</span></h1>
+        <p class="hero-subtitle">ณ มหาวิทยาลัยราชภัฏศรีสะเกษ · ชิงถ้วยรางวัลเกียรติยศสูงสุด</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-lg" onclick="navigate('leaderboard')">📊 ดูตารางคะแนน</button>
+          <button class="btn btn-outline btn-lg" onclick="navigate('competitions')">🏆 ประเภทการแข่งขัน</button>
+        </div>
+      </div>
+      <div class="hero-stats" id="heroStats">
+        <div class="stat-card"><div class="stat-num" id="statComps">18</div><div class="stat-label">ประเภทการแข่งขัน</div></div>
+        <div class="stat-card"><div class="stat-num" id="statTeams">-</div><div class="stat-label">ทีมที่ลงทะเบียน</div></div>
+        <div class="stat-card"><div class="stat-num" id="statScores">-</div><div class="stat-label">คะแนนที่บันทึก</div></div>
+      </div>
+    </div>
+
+    <!-- Competition Grid -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">ประเภทการแข่งขันทั้งหมด</h2>
+        <p class="section-sub">9 รายการ รวม 18 ประเภทตามกลุ่มอายุ</p>
+      </div>
+      <div class="comp-grid" id="homeCompGrid">
+        <div class="loading-spinner"><div class="spinner"></div><p>กำลังโหลด...</p></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- COMPETITIONS PAGE -->
+  <div id="page-competitions" class="page">
+    <div class="page-header">
+      <h1 class="page-title">🏆 ประเภทการแข่งขัน</h1>
+      <div class="filter-bar">
+        <select class="filter-select" id="filterCategory" onchange="filterCompetitions()">
+          <option value="">ทุกประเภท</option>
+          <option value="autonomous">หุ่นยนต์อัตโนมัติ</option>
+          <option value="manual">หุ่นยนต์บังคับมือ</option>
+          <option value="battle">Battle</option>
+          <option value="line_following">Line Following</option>
+        </select>
+        <select class="filter-select" id="filterAge" onchange="filterCompetitions()">
+          <option value="">ทุกรุ่นอายุ</option>
+          <option value="≤12">≤12 ปี</option>
+          <option value="≤15">≤15 ปี</option>
+          <option value="≤18">≤18 ปี</option>
+          <option value="open">รุ่นทั่วไป</option>
+        </select>
+      </div>
+    </div>
+    <div class="comp-list" id="compList">
+      <div class="loading-spinner"><div class="spinner"></div><p>กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD PAGE -->
+  <div id="page-leaderboard" class="page">
+    <div class="page-header">
+      <h1 class="page-title">📊 ตารางคะแนน Live</h1>
+      <div class="refresh-info">
+        <span class="live-dot"></span> อัปเดตอัตโนมัติทุก 30 วินาที
+        <button class="btn btn-sm btn-outline" onclick="loadLeaderboard()">🔄 รีเฟรช</button>
+      </div>
+    </div>
+    <div class="lb-tabs" id="lbTabs"></div>
+    <div id="lbContent">
+      <div class="loading-spinner"><div class="spinner"></div><p>กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+  <!-- COMPETITION DETAIL PAGE -->
+  <div id="page-comp-detail" class="page">
+    <div class="page-header">
+      <button class="btn btn-sm btn-outline" onclick="navigate('competitions')">← กลับ</button>
+      <h1 class="page-title" id="detailTitle">รายละเอียดการแข่งขัน</h1>
+    </div>
+    <div id="compDetailContent"></div>
+  </div>
+
+  <!-- LOGIN PAGE -->
+  <div id="page-login" class="page">
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-logo">🤖</div>
+        <h2 class="auth-title">เข้าสู่ระบบกรรมการ</h2>
+        <p class="auth-sub">ศรีสะเกษโรโบติกส์ 2026</p>
+        <form onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label">ชื่อผู้ใช้</label>
+            <input type="text" id="loginUsername" class="form-input" placeholder="กรอก username" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">รหัสผ่าน</label>
+            <input type="password" id="loginPassword" class="form-input" placeholder="กรอก password" required>
+          </div>
+          <div id="loginError" class="alert alert-error" style="display:none"></div>
+          <button type="submit" class="btn btn-primary btn-full" id="loginBtn">เข้าสู่ระบบ</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN PAGE -->
+  <div id="page-admin" class="page">
+    <div class="page-header">
+      <h1 class="page-title">⚙️ จัดการระบบ</h1>
+      <div class="user-badge" id="userBadge"></div>
+    </div>
+    <div class="admin-tabs">
+      <button class="tab-btn active" onclick="switchAdminTab('teams')">👥 ทีม</button>
+      <button class="tab-btn" onclick="switchAdminTab('scores')">📝 บันทึกคะแนน</button>
+      <button class="tab-btn" onclick="switchAdminTab('matches')">⚔️ Battle</button>
+      <button class="tab-btn" id="usersTabBtn" onclick="switchAdminTab('users')" style="display:none">👤 ผู้ใช้งาน</button>
+    </div>
+
+    <!-- TEAMS TAB -->
+    <div id="adminTab-teams" class="admin-tab-content active">
+      <div class="admin-toolbar">
+        <select class="filter-select" id="teamCompFilter" onchange="loadTeams()">
+          <option value="">ทุกประเภท</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="showTeamModal()">+ เพิ่มทีม</button>
+      </div>
+      <div class="table-container">
+        <table class="data-table" id="teamsTable">
+          <thead><tr><th>#</th><th>เลขทีม</th><th>ชื่อทีม</th><th>โรงเรียน</th><th>ประเภท</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+          <tbody id="teamsTableBody"><tr><td colspan="7" class="text-center">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SCORES TAB -->
+    <div id="adminTab-scores" class="admin-tab-content">
+      <div class="score-entry-container">
+        <div class="score-entry-form-wrapper">
+          <h3 class="form-section-title">บันทึกคะแนน</h3>
+          <div class="form-group">
+            <label class="form-label">ประเภทการแข่งขัน</label>
+            <select class="form-input" id="scoreCompetition" onchange="onCompetitionChange()">
+              <option value="">เลือกประเภท...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">ทีม</label>
+            <select class="form-input" id="scoreTeam">
+              <option value="">เลือกทีม...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">รอบที่</label>
+            <select class="form-input" id="scoreRound">
+              <option value="1">รอบที่ 1</option>
+              <option value="2">รอบที่ 2</option>
+              <option value="3">รอบที่ 3</option>
+            </select>
+          </div>
+          <div id="scoreCriteriaFields"></div>
+          <div class="form-group" id="timeField">
+            <label class="form-label">เวลาที่ใช้ (วินาที)</label>
+            <input type="number" class="form-input" id="scoreTime" min="0" placeholder="เช่น 95.5">
+          </div>
+          <div class="form-group" id="completedField">
+            <label class="form-label">
+              <input type="checkbox" id="scoreCompleted"> ทำสำเร็จ (Completed)
+            </label>
+          </div>
+          <div class="form-group" id="distanceField" style="display:none">
+            <label class="form-label">ระยะทาง (ซม.) กรณีไม่สำเร็จ</label>
+            <input type="number" class="form-input" id="scoreDistance" min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">หมายเหตุ</label>
+            <input type="text" class="form-input" id="scoreNotes" placeholder="(ถ้ามี)">
+          </div>
+          <div id="scorePreview" class="score-preview" style="display:none">
+            <div class="score-preview-label">คะแนนรวม</div>
+            <div class="score-preview-value" id="scorePreviewValue">0</div>
+          </div>
+          <div id="scoreMsg" class="alert" style="display:none"></div>
+          <button class="btn btn-primary btn-full" onclick="submitScore()">💾 บันทึกคะแนน</button>
+        </div>
+        <div class="score-recent-wrapper">
+          <h3 class="form-section-title">คะแนนล่าสุด</h3>
+          <div id="recentScores"><p class="text-muted">เลือกประเภทและทีมเพื่อดูคะแนน</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MATCHES TAB -->
+    <div id="adminTab-matches" class="admin-tab-content">
+      <div class="admin-toolbar">
+        <select class="filter-select" id="matchCompFilter" onchange="loadMatches()">
+          <option value="">ประเภท Battle...</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="showMatchModal()">+ เพิ่มคู่แข่ง</button>
+      </div>
+      <div id="matchesList"><p class="text-muted text-center p-4">เลือกประเภทการแข่งขัน Battle</p></div>
+    </div>
+
+    <!-- USERS TAB -->
+    <div id="adminTab-users" class="admin-tab-content">
+      <div class="admin-toolbar">
+        <button class="btn btn-primary btn-sm" onclick="showUserModal()">+ เพิ่มผู้ใช้งาน</button>
+      </div>
+      <div id="usersList"><p class="text-muted text-center p-4">กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══ MODALS ═══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
+
+<!-- Team Modal -->
+<div class="modal" id="teamModal">
+  <div class="modal-header">
+    <h3 id="teamModalTitle">เพิ่มทีม</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <input type="hidden" id="teamId">
+    <div class="form-group">
+      <label class="form-label">ประเภทการแข่งขัน *</label>
+      <select class="form-input" id="teamComp" required></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">หมายเลขทีม *</label>
+        <input type="text" class="form-input" id="teamNumber" placeholder="เช่น T001" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ชื่อทีม *</label>
+        <input type="text" class="form-input" id="teamName" placeholder="ชื่อทีม" required>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่อโรงเรียน/สถาบัน *</label>
+      <input type="text" class="form-input" id="teamSchool" placeholder="ชื่อโรงเรียน" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่อผู้ควบคุมทีม (โค้ช)</label>
+      <input type="text" class="form-input" id="teamCoach" placeholder="ชื่อโค้ช">
+    </div>
+    <div class="form-group">
+      <label class="form-label">สมาชิก (ชื่อ คั่นด้วยเครื่องหมาย ,)</label>
+      <input type="text" class="form-input" id="teamMembers" placeholder="ชื่อ1, ชื่อ2">
+    </div>
+    <div id="teamModalMsg" class="alert" style="display:none"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveTeam()">💾 บันทึก</button>
+  </div>
+</div>
+
+<!-- Match Modal -->
+<div class="modal" id="matchModal">
+  <div class="modal-header">
+    <h3>บันทึกผล Battle</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <input type="hidden" id="matchId">
+    <div id="matchFormContent"></div>
+    <div id="matchModalMsg" class="alert" style="display:none"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveMatch()">💾 บันทึก</button>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal" id="userModal">
+  <div class="modal-header">
+    <h3>เพิ่มผู้ใช้งาน</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="form-group">
+      <label class="form-label">ชื่อผู้ใช้</label>
+      <input type="text" class="form-input" id="newUsername" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รหัสผ่าน</label>
+      <input type="password" class="form-input" id="newPassword" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่อ-นามสกุล</label>
+      <input type="text" class="form-input" id="newName" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">บทบาท</label>
+      <select class="form-input" id="newRole">
+        <option value="judge">กรรมการ (Judge)</option>
+        <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+      </select>
+    </div>
+    <div id="userModalMsg" class="alert" style="display:none"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveUser()">💾 บันทึก</button>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="toast"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
