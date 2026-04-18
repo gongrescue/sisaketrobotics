@@ -1,9 +1,10 @@
-require('dotenv').config();
+// โหลด env config แบบเดียวกับ server.js (รองรับ .env.development / .env.production)
+const env = require('./config/env');
 const mongoose = require('mongoose');
 const Competition = require('./models/Competition');
 const User = require('./models/User');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/sisaket_robotics';
+const MONGODB_URI = env.MONGODB_URI || 'mongodb://localhost:27017/sisaket_robotics';
 
 const competitions = [
   // ═══════════════════════════════════════════════════════════════

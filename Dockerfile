@@ -24,6 +24,9 @@ COPY --from=builder /app/backend/node_modules ./backend/node_modules
 COPY backend ./backend
 COPY frontend ./frontend
 
+# Copy production env defaults (non-secret) — loader จะหยิบตาม NODE_ENV
+COPY .env.production ./.env.production
+
 RUN chown -R appuser:appgroup /app
 USER appuser
 

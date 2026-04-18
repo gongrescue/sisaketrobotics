@@ -1,4 +1,5 @@
-require('dotenv').config();
+// โหลด env config แยกตาม NODE_ENV (รองรับทั้ง .env, .env.development, .env.production)
+const env = require('./config/env');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -8,7 +9,7 @@ const app = express();
 
 // ─── Middleware ──────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: env.FRONTEND_URL,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -51,12 +52,12 @@ app.use((err, req, res, next) => {
 });
 
 // ─── Database & Server Start ─────────────────────────────────
-const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/sisaket_robotics';
+const PORT = env.PORT;
+const MONGODB_URI = env.MONGODB_URI || 'mongodb://localhost:27017/sisaket_robotics';
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
-    console.log('✅ เชื่อมต่อ MongoDB สำเร็จ');
+    console.log(`✅ เชื่อมต่อ MongoDB สำเร็จ (${env.NODE_ENV})`);
     app.listen(PORT, () => {
       console.log(`🚀 Server กำลังทำงานที่ http://localhost:${PORT}`);
       console.log(`📊 ระบบรายงานผลคะแนน ศรีสะเกษโรโบติกส์ 2026`);

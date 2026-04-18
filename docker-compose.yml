@@ -30,13 +30,16 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    # โหลด env จากไฟล์ตาม NODE_ENV (docker-compose.override.yml จะเปลี่ยนไปใช้ .env.development)
+    env_file:
+      - ./.env.production
     environment:
-      PORT: 5000
+      # Override ให้ชี้ไปที่ MongoDB container ใน compose network
       MONGODB_URI: mongodb://mongodb:27017/sisaket_robotics
-      JWT_SECRET: ${JWT_SECRET:-sisaket_robotics_2026_change_me_in_production}
-      JWT_EXPIRES_IN: 24h
-      NODE_ENV: ${NODE_ENV:-production}
-      FRONTEND_URL: http://localhost
+      # secret ต้องส่งมาจาก host shell หรือไฟล์ .env ที่ root (gitignored)
+      # ตัวอย่าง: JWT_SECRET=xxx docker compose up
+      JWT_SECRET: ${JWT_SECRET:?ต้องตั้ง JWT_SECRET ก่อนรัน — สร้างด้วย openssl rand -hex 32}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
     networks:
       - sisaket_network
     healthcheck:

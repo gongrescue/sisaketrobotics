@@ -5,6 +5,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Environment / secrets
+# Commit:   .env.example, .env.development, .env.production  (non-secret defaults)
+# Ignore:   .env, .env.local, .env.*.local                   (secrets + personal overrides)
 .env
 .env.local
 .env.*.local

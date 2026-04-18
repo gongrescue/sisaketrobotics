@@ -4,9 +4,12 @@
 **/.DS_Store
 **/.git
 **/.gitignore
+# ─── env files ─────────────────────────────────────────────
+# ตัดทุกไฟล์ .env ออกจาก image แล้ว allowlist เฉพาะที่ต้องการ
 **/.env
 **/.env.*
 !.env.example
+!.env.production     # production defaults ต้องติดไปใน image (non-secret)
 
 # Docs / dev-only
 Document/

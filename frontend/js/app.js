@@ -223,6 +223,8 @@ function logout() {
   const wasRestricted = isRestrictedUser();
   token = null; currentUser = null;
   localStorage.removeItem('ssk_token');
+  // Stop any background auto-refresh timers
+  if (typeof stopScoreAutoRefresh === 'function') stopScoreAutoRefresh();
   updateNavForAuth(false);
   navigate(wasRestricted ? 'login' : 'home');
   showToast('ออกจากระบบเรียบร้อย', 'info');
@@ -624,6 +626,10 @@ function switchAdminTabDirect(tab) {
   // Activate matching tab button
   const btn = document.getElementById(`tabBtn-${tab}`);
   if (btn) btn.classList.add('active');
+  // Stop score auto-refresh when leaving the scores tab to avoid background work
+  if (tab !== 'scores' && typeof stopScoreAutoRefresh === 'function') {
+    stopScoreAutoRefresh();
+  }
   if (tab === 'teams') loadTeams();
   else if (tab === 'scores') loadScoreForm();
   else if (tab === 'scoreTable') loadScoresTableInit();
@@ -755,11 +761,13 @@ async function checkInTeam(id) {
 
 // ─── SCORE ENTRY ──────────────────────────────────────────────
 
+// auto-refresh timer สำหรับหน้าบันทึกคะแนน (รีเฟรช "คะแนนล่าสุด" ทุก 30 วินาที ขณะอยู่ในแท็บ)
+let scoreRefreshTimer = null;
+const SCORE_REFRESH_INTERVAL_MS = 30_000;
+
 async function loadScoreForm() {
   await populateCompSelects();
-  document.getElementById('scoreCriteriaFields').innerHTML = '';
-  document.getElementById('scorePreview').style.display = 'none';
-  // Reset edit mode
+  // Reset edit mode (ไม่ล้าง comp/team ที่ผู้ใช้เลือกไว้ — แค่ยกเลิกโหมดแก้ไข)
   const editInput = document.getElementById('editingScoreId');
   if (editInput) editInput.value = '';
   const banner = document.getElementById('scoreEditBanner');
@@ -768,6 +776,117 @@ async function loadScoreForm() {
   if (title) title.textContent = 'บันทึกคะแนน';
   const submitBtn = document.getElementById('submitScoreBtn');
   if (submitBtn) submitBtn.textContent = '💾 บันทึกคะแนน';
+
+  // ── Auto-refresh เมื่อสลับกลับมาแท็บบันทึกคะแนน ──
+  // ถ้าผู้ใช้เลือก competition ไว้แล้ว ให้ rebuild criteria + team list + recent scores
+  // เพื่อให้ข้อมูลไม่ค้างเก่า (stale)
+  const compSel = document.getElementById('scoreCompetition');
+  const teamSel = document.getElementById('scoreTeam');
+  const compId  = compSel?.value || '';
+  const prevTeam = teamSel?.value || '';
+
+  if (compId) {
+    await onCompetitionChange();  // rebuild team dropdown + criteria + preview
+    if (prevTeam && teamSel) {
+      // คืนค่าทีมที่เลือกไว้ (ถ้ายังอยู่ใน list)
+      teamSel.value = prevTeam;
+      if (teamSel.value === prevTeam) {
+        await loadRecentScores(compId, prevTeam);
+      }
+    }
+  } else {
+    const fieldsDiv = document.getElementById('scoreCriteriaFields');
+    if (fieldsDiv) fieldsDiv.innerHTML = '';
+    const preview = document.getElementById('scorePreview');
+    if (preview) preview.style.display = 'none';
+    const recent = document.getElementById('recentScores');
+    if (recent) recent.innerHTML = '<p class="text-muted">เลือกประเภทและทีมเพื่อดูคะแนน</p>';
+  }
+
+  startScoreAutoRefresh();
+}
+
+// เริ่ม interval auto-refresh (เรียกใช้ loadRecentScores ทุก 30 วิ)
+function startScoreAutoRefresh() {
+  stopScoreAutoRefresh();
+  const autoBox = document.getElementById('scoreAutoRefresh');
+  if (!autoBox || !autoBox.checked) {
+    updateAutoRefreshStatus('ปิด');
+    return;
+  }
+  updateAutoRefreshStatus(`ทุก ${SCORE_REFRESH_INTERVAL_MS / 1000} วิ`);
+  scoreRefreshTimer = setInterval(() => {
+    const compId = document.getElementById('scoreCompetition')?.value;
+    const teamId = document.getElementById('scoreTeam')?.value;
+    if (compId && teamId) loadRecentScores(compId, teamId);
+  }, SCORE_REFRESH_INTERVAL_MS);
+}
+
+function stopScoreAutoRefresh() {
+  if (scoreRefreshTimer) {
+    clearInterval(scoreRefreshTimer);
+    scoreRefreshTimer = null;
+  }
+}
+
+function updateAutoRefreshStatus(text) {
+  const el = document.getElementById('scoreAutoRefreshStatus');
+  if (el) el.textContent = text ? `(${text})` : '';
+}
+
+// กด checkbox "Auto" — toggle interval
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'scoreAutoRefresh') {
+    startScoreAutoRefresh();
+  }
+});
+
+// รีเฟรชคะแนนล่าสุดด้วยมือ (ปุ่มในกล่อง "คะแนนล่าสุด")
+async function refreshScoreForm() {
+  const compId = document.getElementById('scoreCompetition')?.value;
+  const teamId = document.getElementById('scoreTeam')?.value;
+  if (!compId) {
+    showToast('กรุณาเลือกประเภทการแข่งขันก่อน', 'info');
+    return;
+  }
+  // rebuild form สำหรับ comp ปัจจุบัน (อาจมีการเปลี่ยน criteria/totalRounds)
+  allCompetitions = []; // บังคับดึง competitions ใหม่
+  await populateCompSelects();
+  document.getElementById('scoreCompetition').value = compId;
+  await onCompetitionChange();
+  if (teamId) {
+    document.getElementById('scoreTeam').value = teamId;
+    await loadRecentScores(compId, teamId);
+  }
+  showToast('รีเฟรชข้อมูลสำเร็จ ✅', 'success');
+}
+
+// ล้างฟอร์ม (ปุ่มในกล่อง "บันทึกคะแนน")
+function resetScoreForm() {
+  if (document.getElementById('editingScoreId')?.value) {
+    if (!confirm('กำลังแก้ไขคะแนนอยู่ ยืนยันล้างฟอร์ม?')) return;
+    cancelEditScore();
+  }
+  // ล้างค่าทั้งหมด
+  const compSel = document.getElementById('scoreCompetition');
+  const teamSel = document.getElementById('scoreTeam');
+  if (compSel) compSel.value = '';
+  if (teamSel) teamSel.innerHTML = '<option value="">เลือกทีม...</option>';
+
+  document.getElementById('scoreCriteriaFields').innerHTML = '';
+  document.getElementById('scorePreview').style.display = 'none';
+  if (document.getElementById('scoreTime'))       document.getElementById('scoreTime').value = '';
+  if (document.getElementById('scoreCompleted')) document.getElementById('scoreCompleted').checked = false;
+  if (document.getElementById('scoreDistance'))  document.getElementById('scoreDistance').value = '';
+  if (document.getElementById('scoreBonusScore')) document.getElementById('scoreBonusScore').value = 0;
+  if (document.getElementById('scoreNotes'))     document.getElementById('scoreNotes').value = '';
+  const msg = document.getElementById('scoreMsg');
+  if (msg) msg.style.display = 'none';
+
+  const recent = document.getElementById('recentScores');
+  if (recent) recent.innerHTML = '<p class="text-muted">เลือกประเภทและทีมเพื่อดูคะแนน</p>';
+  recentScoresCache = [];
+  showToast('ล้างฟอร์มแล้ว', 'info');
 }
 
 async function onCompetitionChange() {

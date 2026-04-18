@@ -10,11 +10,17 @@ services:
   # ── Backend: bind-mount + nodemon hot reload ─────────────────────────────
   backend:
     user: root                        # ใน dev ใช้ root เพื่อเขียน node_modules ได้ (prod ยังเป็น appuser)
+    # Dev ใช้ .env.development แทน .env.production ของ base compose
+    env_file:
+      - ./.env.development
     environment:
       NODE_ENV: development
-      CHOKIDAR_USEPOLLING: "true"   # ให้ file watcher เห็นการเปลี่ยนแปลงไฟล์ใน Docker (Mac/Win)
+      CHOKIDAR_USEPOLLING: "true"     # ให้ file watcher เห็นการเปลี่ยนแปลงไฟล์ใน Docker (Mac/Win)
+      # Override บังคับ เพราะ env_file override base แล้วแต่ MongoDB ต้องชี้ใน compose network
+      MONGODB_URI: mongodb://mongodb:27017/sisaket_robotics
     volumes:
       - ./backend:/app                # โค้ดจริงจาก host
+      - ./.env.development:/.env.development:ro  # ให้ env loader หาไฟล์ได้ (backend WORKDIR=/app, root=/..)
       - /app/node_modules             # anonymous volume กัน node_modules ของ image โดน mount ทับ
     command: sh -c "npm install --include=dev --no-audit --no-fund --silent && npx nodemon --legacy-watch server.js"
 

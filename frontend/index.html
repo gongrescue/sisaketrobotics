@@ -174,7 +174,10 @@
     <div id="adminTab-scores" class="admin-tab-content">
       <div class="score-entry-container">
         <div class="score-entry-form-wrapper">
-          <h3 class="form-section-title" id="scoreFormTitle">บันทึกคะแนน</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">
+            <h3 class="form-section-title" id="scoreFormTitle" style="margin-bottom:0">บันทึกคะแนน</h3>
+            <button class="btn btn-sm btn-outline" onclick="resetScoreForm()" title="ล้างฟอร์มและโหลดใหม่">🔄 รีเฟรช</button>
+          </div>
           <div id="scoreEditBanner" class="alert alert-info" style="display:none;align-items:center;justify-content:space-between;gap:0.5rem">
             <span>✏️ กำลังแก้ไขคะแนนที่บันทึกไว้ (รอบที่ <span id="scoreEditRound">-</span>)</span>
             <button type="button" class="btn btn-sm btn-outline" onclick="cancelEditScore()">ยกเลิก</button>
@@ -230,7 +233,17 @@
           <button class="btn btn-primary btn-full" id="submitScoreBtn" onclick="submitScore()">💾 บันทึกคะแนน</button>
         </div>
         <div class="score-recent-wrapper">
-          <h3 class="form-section-title">คะแนนล่าสุด</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">
+            <h3 class="form-section-title" style="margin-bottom:0">คะแนนล่าสุด</h3>
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <label style="display:flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--text-muted);cursor:pointer">
+                <input type="checkbox" id="scoreAutoRefresh" checked style="margin:0">
+                <span>Auto</span>
+              </label>
+              <span id="scoreAutoRefreshStatus" style="font-size:0.7rem;color:var(--text-dim)"></span>
+              <button class="btn btn-sm btn-outline" onclick="refreshScoreForm()" title="รีเฟรชข้อมูล">🔄 รีเฟรช</button>
+            </div>
+          </div>
           <div id="recentScores"><p class="text-muted">เลือกประเภทและทีมเพื่อดูคะแนน</p></div>
         </div>
       </div>

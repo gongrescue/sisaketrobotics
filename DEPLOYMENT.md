@@ -40,7 +40,30 @@ MongoDB Atlas (external) หรือ DO Managed MongoDB
 | `.do/app.yaml` | DO App Platform spec (region, instance size, env vars, health check) |
 | `.github/workflows/ci.yml` | รัน syntax check + Docker build ทุก PR และ push |
 | `.github/workflows/deploy.yml` | Sync spec + force rebuild app เมื่อ push main |
-| `.env.example` | Template ของ environment variables |
+| `.env.example` | Template ของ environment variables (ทุก key ที่ใช้) |
+| `.env.development` | Default สำหรับ dev (committed, no secrets) |
+| `.env.production` | Default สำหรับ prod (committed, non-secret เท่านั้น) |
+| `backend/config/env.js` | Smart loader — เลือกไฟล์ตาม `NODE_ENV` |
+
+---
+
+## Environment Config
+
+ระบบโหลด env จากหลายไฟล์ ตามลำดับความสำคัญ (ล่างชนะบน):
+
+```
+1. .env.<NODE_ENV>        ← committed (dev/prod defaults)
+2. .env.<NODE_ENV>.local  ← gitignored (เฉพาะเครื่องคุณ / secret)
+3. .env                   ← gitignored (legacy fallback)
+4. .env.local             ← gitignored (personal override)
+```
+
+**ค่า `process.env` จาก platform (DO, Docker) จะชนะเสมอ** — dotenv ไม่ override ค่าที่มีอยู่
+
+**การใช้งานทั่วไป:**
+- **Local dev:** `NODE_ENV=development npm run dev` → โหลด `.env.development` อัตโนมัติ
+- **Local prod test:** สร้าง `.env.production.local` ใส่ secret → `NODE_ENV=production npm start`
+- **DO App Platform:** ใส่ SECRET ใน Dashboard, `.env.production` ติดไปใน image สำหรับ non-secret defaults
 
 ---
 
