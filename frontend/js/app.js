@@ -61,6 +61,12 @@ function getStatusLabel(status) {
 // ─── NAVIGATION ──────────────────────────────────────────────
 
 function navigate(page, data = null) {
+  // Judge can only access score entry (admin page, scores tab) and login
+  if (isJudge() && page !== 'admin' && page !== 'login') {
+    navigate('admin');
+    return;
+  }
+
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
   const el = document.getElementById(`page-${page}`);
@@ -99,15 +105,41 @@ async function checkAuth() {
   }
 }
 
+function isJudge() {
+  return currentUser && currentUser.role === 'judge';
+}
+
 function updateNavForAuth(loggedIn) {
-  document.getElementById('loginNavLink').style.display = loggedIn ? 'none' : '';
+  const isAdmin = loggedIn && currentUser && currentUser.role === 'admin';
+  const judge   = loggedIn && isJudge();
+
+  document.getElementById('loginNavLink').style.display  = loggedIn ? 'none' : '';
   document.getElementById('logoutNavLink').style.display = loggedIn ? '' : 'none';
-  document.getElementById('adminNavLink').style.display = loggedIn ? '' : 'none';
+  document.getElementById('adminNavLink').style.display  = isAdmin ? '' : 'none';
+  document.getElementById('judgeNavLink').style.display  = judge   ? '' : 'none';
+
+  // Public nav links: hide for judge (they only see score entry)
+  const publicLinks = ['homeNavLink', 'compsNavLink', 'lbNavLink'];
+  publicLinks.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = judge ? 'none' : '';
+  });
+
   if (loggedIn && currentUser) {
-    const el = document.getElementById('usersTabBtn');
-    if (el) el.style.display = currentUser.role === 'admin' ? '' : 'none';
+    // Hide tabs not available to judge
+    const teamsTabBtn   = document.getElementById('tabBtn-teams');
+    const matchesTabBtn = document.getElementById('tabBtn-matches');
+    const usersTabBtn   = document.getElementById('tabBtn-users');
+    if (teamsTabBtn)   teamsTabBtn.style.display   = judge ? 'none' : '';
+    if (matchesTabBtn) matchesTabBtn.style.display = judge ? 'none' : '';
+    if (usersTabBtn)   usersTabBtn.style.display   = isAdmin ? '' : 'none';
+
     const badge = document.getElementById('userBadge');
-    if (badge) badge.textContent = `👤 ${currentUser.name} (${currentUser.role})`;
+    if (badge) badge.textContent = `👤 ${currentUser.name} (${currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'กรรมการ'})`;
+
+    // Update admin page title for judge
+    const adminTitle = document.getElementById('adminPageTitle');
+    if (adminTitle) adminTitle.textContent = judge ? '📝 บันทึกคะแนน' : '⚙️ จัดการระบบ';
   }
 }
 
@@ -137,10 +169,11 @@ async function handleLogin(e) {
 }
 
 function logout() {
+  const wasJudge = isJudge();
   token = null; currentUser = null;
   localStorage.removeItem('ssk_token');
   updateNavForAuth(false);
-  navigate('home');
+  navigate(wasJudge ? 'login' : 'home');
   showToast('ออกจากระบบเรียบร้อย', 'info');
 }
 
@@ -514,18 +547,37 @@ function renderLbTable(rankData, comp) {
 function loadAdmin() {
   if (!token) { navigate('login'); return; }
   updateNavForAuth(true);
-  switchAdminTab('teams');
+  // Judge goes straight to score entry; admin starts on teams tab
+  if (isJudge()) {
+    switchAdminTabDirect('scores');
+  } else {
+    switchAdminTabDirect('teams');
+  }
 }
 
-function switchAdminTab(tab) {
+function switchAdminTabDirect(tab) {
+  // Judge cannot switch away from scores tab
+  if (isJudge() && tab !== 'scores') return;
   document.querySelectorAll('.admin-tab-content').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`adminTab-${tab}`)?.classList.add('active');
-  event.target.classList.add('active');
+  // Activate matching tab button
+  const btn = document.getElementById(`tabBtn-${tab}`);
+  if (btn) btn.classList.add('active');
   if (tab === 'teams') loadTeams();
   else if (tab === 'scores') loadScoreForm();
   else if (tab === 'matches') loadMatchFilters();
   else if (tab === 'users') loadUsers();
+}
+
+function switchAdminTab(tab) {
+  if (isJudge() && tab !== 'scores') return; // guard for judge
+  switchAdminTabDirect(tab);
+  // Also highlight the clicked button (event.target from inline onclick)
+  if (typeof event !== 'undefined' && event && event.target) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  }
 }
 
 // ─── TEAMS ADMIN ──────────────────────────────────────────────
@@ -689,11 +741,22 @@ async function onCompetitionChange() {
     document.getElementById('scorePreview').style.display = '';
     calcPreviewScore(compId);
   }
+  // For TIME-based competitions, still show preview when bonus score is entered
+  if (comp.scoringType === 'TIME') {
+    document.getElementById('scorePreview').style.display = '';
+    document.getElementById('scorePreviewValue').textContent = '0';
+  }
 }
 
 function calcPreviewScore(compId) {
   const comp = allCompetitions.find(c => c._id === compId);
-  if (!comp || comp.scoringType === 'TIME') return;
+  if (!comp) return;
+  // For TIME competitions, only show bonus score in preview
+  if (comp.scoringType === 'TIME') {
+    const bonus = parseFloat(document.getElementById('scoreBonusScore')?.value) || 0;
+    document.getElementById('scorePreviewValue').textContent = bonus;
+    return;
+  }
   let total = 0;
   comp.scoringCriteria?.forEach(cr => {
     const el = document.getElementById(`crit_${cr.key}`);
@@ -706,6 +769,8 @@ function calcPreviewScore(compId) {
       total += cr.isPenalty ? -pts : pts;
     }
   });
+  const bonus = parseFloat(document.getElementById('scoreBonusScore')?.value) || 0;
+  total += bonus;
   document.getElementById('scorePreviewValue').textContent = total;
 }
 
@@ -715,14 +780,19 @@ async function loadRecentScores(compId, teamId) {
   try {
     const res = await apiFetch(`/scores?competition=${compId}&team=${teamId}`);
     if (!res.data.length) { div.innerHTML = '<p class="text-muted">ยังไม่มีคะแนน</p>'; return; }
-    div.innerHTML = res.data.sort((a,b) => a.round - b.round).map(s => `
+    div.innerHTML = res.data.sort((a,b) => a.round - b.round).map(s => {
+      const isTime = s.competition?.scoringType === 'TIME';
+      const mainScore = isTime ? formatTime(s.timeUsedSeconds) : s.totalScore;
+      const bonusBadge = s.bonusScore ? `<span style="font-size:0.7rem;color:var(--accent);margin-left:4px">+${s.bonusScore}⭐</span>` : '';
+      return `
       <div class="score-item">
         <div>
           <div class="score-item-round">รอบที่ ${s.round}</div>
           <div style="font-size:0.75rem;color:var(--text-dim)">${new Date(s.updatedAt).toLocaleString('th-TH')}</div>
         </div>
-        <div class="score-item-score">${s.competition?.scoringType === 'TIME' ? formatTime(s.timeUsedSeconds) : s.totalScore}</div>
-      </div>`).join('');
+        <div class="score-item-score">${mainScore}${bonusBadge}</div>
+      </div>`;
+    }).join('');
   } catch { div.innerHTML = '<p class="text-muted">โหลดไม่สำเร็จ</p>'; }
 }
 
@@ -749,7 +819,8 @@ async function submitScore() {
     team: teamId, competition: compId, round, details, notes,
     timeUsedSeconds: parseFloat(document.getElementById('scoreTime')?.value) || 0,
     taskCompleted: document.getElementById('scoreCompleted')?.checked || false,
-    distanceCm: parseFloat(document.getElementById('scoreDistance')?.value) || 0
+    distanceCm: parseFloat(document.getElementById('scoreDistance')?.value) || 0,
+    bonusScore: parseFloat(document.getElementById('scoreBonusScore')?.value) || 0
   };
 
   try {
@@ -764,6 +835,7 @@ async function submitScore() {
     });
     if (document.getElementById('scoreTime')) document.getElementById('scoreTime').value = '';
     if (document.getElementById('scoreCompleted')) document.getElementById('scoreCompleted').checked = false;
+    if (document.getElementById('scoreBonusScore')) document.getElementById('scoreBonusScore').value = 0;
     calcPreviewScore(compId);
   } catch (err) { showAlert('scoreMsg', err.message, 'error'); }
 }

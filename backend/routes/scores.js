@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
 // POST /api/scores - enter or update score
 router.post('/', protect, judgeOrAdmin, async (req, res) => {
   try {
-    const { team: teamId, competition: competitionId, round, details, timeUsedSeconds, taskCompleted, distanceCm, retries, notes } = req.body;
+    const { team: teamId, competition: competitionId, round, details, timeUsedSeconds, taskCompleted, distanceCm, retries, notes, bonusScore } = req.body;
 
     const competition = await Competition.findById(competitionId);
     if (!competition) return res.status(404).json({ success: false, message: 'ไม่พบประเภทการแข่งขัน' });
@@ -64,8 +64,10 @@ router.post('/', protect, judgeOrAdmin, async (req, res) => {
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ success: false, message: 'ไม่พบทีม' });
 
-    // Calculate score
-    const totalScore = calculateScore(competition, details || {});
+    // Calculate score (criteria score + bonus)
+    const criteriaScore = calculateScore(competition, details || {});
+    const bonus = Number(bonusScore) || 0;
+    const totalScore = criteriaScore + bonus;
 
     // Upsert (create or update)
     const score = await Score.findOneAndUpdate(
@@ -76,6 +78,7 @@ router.post('/', protect, judgeOrAdmin, async (req, res) => {
         round,
         details: details || {},
         totalScore,
+        bonusScore: bonus,
         timeUsedSeconds: timeUsedSeconds || 0,
         taskCompleted: taskCompleted || false,
         distanceCm: distanceCm || 0,
@@ -101,11 +104,18 @@ router.put('/:id', protect, judgeOrAdmin, async (req, res) => {
     const existingScore = await Score.findById(req.params.id).populate('competition');
     if (!existingScore) return res.status(404).json({ success: false, message: 'ไม่พบคะแนน' });
 
-    const { details, timeUsedSeconds, taskCompleted, distanceCm, retries, notes, isValid, disqualified, disqualificationReason } = req.body;
+    const { details, timeUsedSeconds, taskCompleted, distanceCm, retries, notes, bonusScore, isValid, disqualified, disqualificationReason } = req.body;
 
-    if (details) {
+    if (details !== undefined) {
       existingScore.details = details;
-      existingScore.totalScore = calculateScore(existingScore.competition, details);
+      const criteriaScore = calculateScore(existingScore.competition, details);
+      const bonus = bonusScore !== undefined ? (Number(bonusScore) || 0) : (existingScore.bonusScore || 0);
+      existingScore.totalScore = criteriaScore + bonus;
+      existingScore.bonusScore = bonus;
+    } else if (bonusScore !== undefined) {
+      existingScore.bonusScore = Number(bonusScore) || 0;
+      const criteriaScore = calculateScore(existingScore.competition, existingScore.details || {});
+      existingScore.totalScore = criteriaScore + existingScore.bonusScore;
     }
     if (timeUsedSeconds !== undefined) existingScore.timeUsedSeconds = timeUsedSeconds;
     if (taskCompleted !== undefined) existingScore.taskCompleted = taskCompleted;

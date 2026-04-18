@@ -22,6 +22,9 @@ const scoreSchema = new mongoose.Schema({
   // Computed total score
   totalScore: { type: Number, default: 0 },
 
+  // Bonus score (special score added on top)
+  bonusScore: { type: Number, default: 0 },
+
   // Time used (for time-based and as tiebreaker)
   timeUsedSeconds: { type: Number, default: 0 },
 

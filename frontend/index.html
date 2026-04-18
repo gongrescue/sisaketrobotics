@@ -21,10 +21,11 @@
       </div>
     </div>
     <div class="nav-links" id="navLinks">
-      <a class="nav-link active" onclick="navigate('home')" data-page="home">🏠 หน้าหลัก</a>
-      <a class="nav-link" onclick="navigate('competitions')" data-page="competitions">🏆 ประเภทการแข่งขัน</a>
-      <a class="nav-link" onclick="navigate('leaderboard')" data-page="leaderboard">📊 ตารางคะแนน</a>
+      <a class="nav-link active" id="homeNavLink" onclick="navigate('home')" data-page="home">🏠 หน้าหลัก</a>
+      <a class="nav-link" id="compsNavLink" onclick="navigate('competitions')" data-page="competitions">🏆 ประเภทการแข่งขัน</a>
+      <a class="nav-link" id="lbNavLink" onclick="navigate('leaderboard')" data-page="leaderboard">📊 ตารางคะแนน</a>
       <a class="nav-link" id="adminNavLink" onclick="navigate('admin')" data-page="admin" style="display:none">⚙️ จัดการ</a>
+      <a class="nav-link" id="judgeNavLink" onclick="navigate('admin')" data-page="admin" style="display:none">📝 บันทึกคะแนน</a>
       <a class="nav-link" id="loginNavLink" onclick="navigate('login')">🔐 เข้าสู่ระบบ</a>
       <a class="nav-link" id="logoutNavLink" onclick="logout()" style="display:none">🚪 ออก</a>
     </div>
@@ -142,14 +143,14 @@
   <!-- ADMIN PAGE -->
   <div id="page-admin" class="page">
     <div class="page-header">
-      <h1 class="page-title">⚙️ จัดการระบบ</h1>
+      <h1 class="page-title" id="adminPageTitle">⚙️ จัดการระบบ</h1>
       <div class="user-badge" id="userBadge"></div>
     </div>
     <div class="admin-tabs">
-      <button class="tab-btn active" onclick="switchAdminTab('teams')">👥 ทีม</button>
-      <button class="tab-btn" onclick="switchAdminTab('scores')">📝 บันทึกคะแนน</button>
-      <button class="tab-btn" onclick="switchAdminTab('matches')">⚔️ Battle</button>
-      <button class="tab-btn" id="usersTabBtn" onclick="switchAdminTab('users')" style="display:none">👤 ผู้ใช้งาน</button>
+      <button class="tab-btn active" id="tabBtn-teams"   onclick="switchAdminTab('teams')">👥 ทีม</button>
+      <button class="tab-btn"        id="tabBtn-scores"  onclick="switchAdminTab('scores')">📝 บันทึกคะแนน</button>
+      <button class="tab-btn"        id="tabBtn-matches" onclick="switchAdminTab('matches')">⚔️ Battle</button>
+      <button class="tab-btn"        id="tabBtn-users"   onclick="switchAdminTab('users')" style="display:none">👤 ผู้ใช้งาน</button>
     </div>
 
     <!-- TEAMS TAB -->
@@ -206,6 +207,10 @@
           <div class="form-group" id="distanceField" style="display:none">
             <label class="form-label">ระยะทาง (ซม.) กรณีไม่สำเร็จ</label>
             <input type="number" class="form-input" id="scoreDistance" min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">⭐ คะแนนพิเศษ (Bonus)</label>
+            <input type="number" class="form-input" id="scoreBonusScore" min="0" value="0" placeholder="0" oninput="calcPreviewScore(document.getElementById('scoreCompetition').value)">
           </div>
           <div class="form-group">
             <label class="form-label">หมายเหตุ</label>

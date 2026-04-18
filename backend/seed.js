@@ -22,12 +22,12 @@ const competitions = [
     timePerRoundSeconds: 180,
     setupTimeSeconds: 30,
     scoringCriteria: [
-      { key: 'items_flat',  label: 'วางบนพื้นราบ (กล่อง)', labelEn: 'Flat surface', type: 'number', pointsPerUnit: 1 },
-      { key: 'items_5cm',   label: 'วางพื้นสูง 5 ซม. (กล่อง)', type: 'number', pointsPerUnit: 2 },
-      { key: 'items_8cm',   label: 'วางพื้นสูง 8 ซม. (กล่อง)', type: 'number', pointsPerUnit: 3 },
-      { key: 'items_10cm',  label: 'วางพื้นสูง 10 ซม. (กล่อง)', type: 'number', pointsPerUnit: 4 },
-      { key: 'items_15cm',  label: 'วางพื้นสูง 15 ซม. (กล่อง)', type: 'number', pointsPerUnit: 5 },
-      { key: 'items_pillar',label: 'วางบนอุปสรรคสิ่งกีดขวาง (กล่อง)', type: 'number', pointsPerUnit: 8 },
+      { key: 'items_flat', label: 'วางบนพื้นราบ (กล่อง)', labelEn: 'Flat surface', type: 'number', pointsPerUnit: 1 },
+      { key: 'items_5cm', label: 'วางพื้นสูง 5 ซม. (กล่อง)', type: 'number', pointsPerUnit: 2 },
+      { key: 'items_8cm', label: 'วางพื้นสูง 8 ซม. (กล่อง)', type: 'number', pointsPerUnit: 3 },
+      { key: 'items_10cm', label: 'วางพื้นสูง 10 ซม. (กล่อง)', type: 'number', pointsPerUnit: 4 },
+      { key: 'items_15cm', label: 'วางพื้นสูง 15 ซม. (กล่อง)', type: 'number', pointsPerUnit: 5 },
+      { key: 'items_pillar', label: 'วางบนอุปสรรคสิ่งกีดขวาง (กล่อง)', type: 'number', pointsPerUnit: 8 },
       { key: 'return_stop', label: 'กลับจุด STOP สำเร็จ', type: 'boolean', points: 10 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 1
@@ -72,11 +72,11 @@ const competitions = [
     setupTimeSeconds: 30,
     scoringCriteria: [
       { key: 'yellow_correct', label: 'กระป๋องสีเหลือง (หมากอง) วางถูกที่', type: 'number', pointsPerUnit: 10 },
-      { key: 'red_correct',    label: 'กระป๋องสีแดง (ชะนี) วางถูกที่', type: 'number', pointsPerUnit: 10 },
-      { key: 'blue_correct',   label: 'กระป๋องสีน้ำเงิน (ก้านยาว) วางถูกที่', type: 'number', pointsPerUnit: 10 },
-      { key: 'green_correct',  label: 'กระป๋องสีเขียว (ส่งขาย) วางถูกที่', type: 'number', pointsPerUnit: 10 },
+      { key: 'red_correct', label: 'กระป๋องสีแดง (ชะนี) วางถูกที่', type: 'number', pointsPerUnit: 10 },
+      { key: 'blue_correct', label: 'กระป๋องสีน้ำเงิน (ก้านยาว) วางถูกที่', type: 'number', pointsPerUnit: 10 },
+      { key: 'green_correct', label: 'กระป๋องสีเขียว (ส่งขาย) วางถูกที่', type: 'number', pointsPerUnit: 10 },
       { key: 'checkpoint_penalty', label: 'ผ่านจุดห้าม (ปรับ)', type: 'number', pointsPerUnit: 10, isPenalty: true },
-      { key: 'return_finish',  label: 'กลับจุด Finish สำเร็จ', type: 'boolean', points: 20 }
+      { key: 'return_finish', label: 'กลับจุด Finish สำเร็จ', type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 3
   },
@@ -98,10 +98,10 @@ const competitions = [
     setupTimeSeconds: 30,
     scoringCriteria: [
       { key: 'checkpoint_passed', label: 'จุด Checkpoint ที่ผ่านได้', type: 'number', pointsPerUnit: 5 },
-      { key: 'bag_red',    label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_red', label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'bag_yellow', label: 'ถุงยังชีพสีเหลืองวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_blue',   label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_green',  label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_blue', label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_green', label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'return_start', label: 'กลับจุด START สำเร็จ', type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 4
@@ -115,10 +115,10 @@ const competitions = [
     totalRounds: 3, timePerRoundSeconds: 180, setupTimeSeconds: 30,
     scoringCriteria: [
       { key: 'checkpoint_passed', label: 'จุด Checkpoint ที่ผ่านได้', type: 'number', pointsPerUnit: 5 },
-      { key: 'bag_red',    label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_red', label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'bag_yellow', label: 'ถุงยังชีพสีเหลืองวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_blue',   label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_green',  label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_blue', label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_green', label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'return_start', label: 'กลับจุด START สำเร็จ', type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 5
@@ -132,10 +132,10 @@ const competitions = [
     totalRounds: 3, timePerRoundSeconds: 180, setupTimeSeconds: 30,
     scoringCriteria: [
       { key: 'checkpoint_passed', label: 'จุด Checkpoint ที่ผ่านได้', type: 'number', pointsPerUnit: 5 },
-      { key: 'bag_red',    label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_red', label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'bag_yellow', label: 'ถุงยังชีพสีเหลืองวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_blue',   label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_green',  label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_blue', label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_green', label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'return_start', label: 'กลับจุด START สำเร็จ', type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 6
@@ -153,10 +153,10 @@ const competitions = [
     totalRounds: 3, timePerRoundSeconds: 180, setupTimeSeconds: 30,
     scoringCriteria: [
       { key: 'checkpoint_passed', label: 'จุด Checkpoint ที่ผ่านได้', type: 'number', pointsPerUnit: 5 },
-      { key: 'bag_red',    label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_red', label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'bag_yellow', label: 'ถุงยังชีพสีเหลืองวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_blue',   label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_green',  label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_blue', label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_green', label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'return_start', label: 'กลับจุด START สำเร็จ', type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 7
@@ -170,10 +170,10 @@ const competitions = [
     totalRounds: 3, timePerRoundSeconds: 180, setupTimeSeconds: 30,
     scoringCriteria: [
       { key: 'checkpoint_passed', label: 'จุด Checkpoint ที่ผ่านได้', type: 'number', pointsPerUnit: 5 },
-      { key: 'bag_red',    label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_red', label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'bag_yellow', label: 'ถุงยังชีพสีเหลืองวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_blue',   label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_green',  label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_blue', label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_green', label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'return_start', label: 'กลับจุด START สำเร็จ', type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 8
@@ -187,10 +187,10 @@ const competitions = [
     totalRounds: 3, timePerRoundSeconds: 180, setupTimeSeconds: 30,
     scoringCriteria: [
       { key: 'checkpoint_passed', label: 'จุด Checkpoint ที่ผ่านได้', type: 'number', pointsPerUnit: 5 },
-      { key: 'bag_red',    label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_red', label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'bag_yellow', label: 'ถุงยังชีพสีเหลืองวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_blue',   label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_green',  label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_blue', label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
+      { key: 'bag_green', label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
       { key: 'return_start', label: 'กลับจุด START สำเร็จ', type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 9
@@ -209,7 +209,7 @@ const competitions = [
     scoringCriteria: [
       { key: 'black_sorted', label: 'กระป๋องสีดำ (ขยะ) แยกถูก', type: 'number', pointsPerUnit: 10 },
       { key: 'white_sorted', label: 'กระป๋องสีขาว (รีไซเคิล) แยกถูก', type: 'number', pointsPerUnit: 10 },
-      { key: 'wrong_sort',   label: 'กระป๋องแยกผิดที่ (ปรับ)', type: 'number', pointsPerUnit: 5, isPenalty: true },
+      { key: 'wrong_sort', label: 'กระป๋องแยกผิดที่ (ปรับ)', type: 'number', pointsPerUnit: 5, isPenalty: true },
       { key: 'return_start', label: 'กลับจุดเริ่มต้น', type: 'boolean', points: 10 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 10
@@ -224,7 +224,7 @@ const competitions = [
     scoringCriteria: [
       { key: 'black_sorted', label: 'กระป๋องสีดำ (ขยะ) แยกถูก', type: 'number', pointsPerUnit: 10 },
       { key: 'white_sorted', label: 'กระป๋องสีขาว (รีไซเคิล) แยกถูก', type: 'number', pointsPerUnit: 10 },
-      { key: 'wrong_sort',   label: 'กระป๋องแยกผิดที่ (ปรับ)', type: 'number', pointsPerUnit: 5, isPenalty: true },
+      { key: 'wrong_sort', label: 'กระป๋องแยกผิดที่ (ปรับ)', type: 'number', pointsPerUnit: 5, isPenalty: true },
       { key: 'return_start', label: 'กลับจุดเริ่มต้น', type: 'boolean', points: 10 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 11
@@ -239,7 +239,7 @@ const competitions = [
     scoringCriteria: [
       { key: 'black_sorted', label: 'กระป๋องสีดำ (ขยะ) แยกถูก', type: 'number', pointsPerUnit: 10 },
       { key: 'white_sorted', label: 'กระป๋องสีขาว (รีไซเคิล) แยกถูก', type: 'number', pointsPerUnit: 10 },
-      { key: 'wrong_sort',   label: 'กระป๋องแยกผิดที่ (ปรับ)', type: 'number', pointsPerUnit: 5, isPenalty: true },
+      { key: 'wrong_sort', label: 'กระป๋องแยกผิดที่ (ปรับ)', type: 'number', pointsPerUnit: 5, isPenalty: true },
       { key: 'return_start', label: 'กลับจุดเริ่มต้น', type: 'boolean', points: 10 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 12
@@ -256,12 +256,12 @@ const competitions = [
     category: 'autonomous', ageGroup: '≤15', scoringType: 'POINT', rankingMethod: 'BEST',
     totalRounds: 3, timePerRoundSeconds: 300, setupTimeSeconds: 30,
     scoringCriteria: [
-      { key: 'started',         label: 'ออกจากจุดเริ่มต้นได้', type: 'boolean', points: 10 },
-      { key: 'box_picked',      label: 'หยิบกล่องได้ (กล่อง)', type: 'number', pointsPerUnit: 10 },
-      { key: 'box_correct',     label: 'วางกล่องถูกที่ (กล่อง)', type: 'number', pointsPerUnit: 20 },
+      { key: 'started', label: 'ออกจากจุดเริ่มต้นได้', type: 'boolean', points: 10 },
+      { key: 'box_picked', label: 'หยิบกล่องได้ (กล่อง)', type: 'number', pointsPerUnit: 10 },
+      { key: 'box_correct', label: 'วางกล่องถูกที่ (กล่อง)', type: 'number', pointsPerUnit: 20 },
       { key: 'pingpong_scored', label: 'ยิงลูกปิงปองสำเร็จ', type: 'number', pointsPerUnit: 10 },
-      { key: 'landmark_done',   label: 'ภารกิจสัญลักษณ์เมือง (logo)', type: 'boolean', points: 50 },
-      { key: 'all_10_boxes',    label: 'เก็บกล่องครบ 10 ใบ', type: 'boolean', points: 0, isBonus: true }
+      { key: 'landmark_done', label: 'ภารกิจสัญลักษณ์เมือง (logo)', type: 'boolean', points: 50 },
+      { key: 'all_10_boxes', label: 'เก็บกล่องครบ 10 ใบ', type: 'boolean', points: 0, isBonus: true }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 13
   },
@@ -273,12 +273,12 @@ const competitions = [
     category: 'autonomous', ageGroup: 'open', scoringType: 'POINT', rankingMethod: 'BEST',
     totalRounds: 3, timePerRoundSeconds: 300, setupTimeSeconds: 30,
     scoringCriteria: [
-      { key: 'started',         label: 'ออกจากจุดเริ่มต้นได้', type: 'boolean', points: 10 },
-      { key: 'box_picked',      label: 'หยิบกล่องได้ (กล่อง)', type: 'number', pointsPerUnit: 10 },
-      { key: 'box_correct',     label: 'วางกล่องถูกที่ (กล่อง)', type: 'number', pointsPerUnit: 20 },
+      { key: 'started', label: 'ออกจากจุดเริ่มต้นได้', type: 'boolean', points: 10 },
+      { key: 'box_picked', label: 'หยิบกล่องได้ (กล่อง)', type: 'number', pointsPerUnit: 10 },
+      { key: 'box_correct', label: 'วางกล่องถูกที่ (กล่อง)', type: 'number', pointsPerUnit: 20 },
       { key: 'pingpong_scored', label: 'ยิงลูกปิงปองสำเร็จ', type: 'number', pointsPerUnit: 10 },
-      { key: 'landmark_done',   label: 'ภารกิจสัญลักษณ์เมือง (logo)', type: 'boolean', points: 50 },
-      { key: 'bridge_crossed',  label: 'ผ่านสะพาน', type: 'boolean', points: 20 }
+      { key: 'landmark_done', label: 'ภารกิจสัญลักษณ์เมือง (logo)', type: 'boolean', points: 50 },
+      { key: 'bridge_crossed', label: 'ผ่านสะพาน', type: 'boolean', points: 20 }
     ],
     maxTeams: 30, status: 'registration', sortOrder: 14
   },
@@ -294,14 +294,14 @@ const competitions = [
     category: 'manual', ageGroup: '≤15', scoringType: 'POINT', rankingMethod: 'BEST',
     totalRounds: 1, timePerRoundSeconds: 300, setupTimeSeconds: 30,
     scoringCriteria: [
-      { key: 'climbed_stairs',    label: 'ปีนบันไดได้ (20 คะแนน)', type: 'boolean', points: 20 },
-      { key: 'start_point_2',     label: 'วางที่จุดเริ่ม 2 ได้ (ไม่ปีน 10 คะแนน)', type: 'boolean', points: 10 },
-      { key: 'can_picked',        label: 'หยิบกระป๋องออกจากจุด (กระป๋อง)', type: 'number', pointsPerUnit: 5 },
-      { key: 'can_placed',        label: 'วางกระป๋องสำเร็จ (กระป๋อง)', type: 'number', pointsPerUnit: 10 },
-      { key: 'pingpong_picked',   label: 'หยิบลูกปิงปอง (ลูก)', type: 'number', pointsPerUnit: 5 },
-      { key: 'pingpong_placed',   label: 'วางลูกปิงปองสำเร็จ (ลูก)', type: 'number', pointsPerUnit: 5 },
-      { key: 'pvc_passed',        label: 'ผ่านท่อ PVC ครึ่ง', type: 'boolean', points: 20 },
-      { key: 'survivor_rescued',  label: 'ช่วยผู้ประสบภัย (ตุ๊กตา)', type: 'boolean', points: 5 },
+      { key: 'climbed_stairs', label: 'ปีนบันไดได้ (20 คะแนน)', type: 'boolean', points: 20 },
+      { key: 'start_point_2', label: 'วางที่จุดเริ่ม 2 ได้ (ไม่ปีน 10 คะแนน)', type: 'boolean', points: 10 },
+      { key: 'can_picked', label: 'หยิบกระป๋องออกจากจุด (กระป๋อง)', type: 'number', pointsPerUnit: 5 },
+      { key: 'can_placed', label: 'วางกระป๋องสำเร็จ (กระป๋อง)', type: 'number', pointsPerUnit: 10 },
+      { key: 'pingpong_picked', label: 'หยิบลูกปิงปอง (ลูก)', type: 'number', pointsPerUnit: 5 },
+      { key: 'pingpong_placed', label: 'วางลูกปิงปองสำเร็จ (ลูก)', type: 'number', pointsPerUnit: 5 },
+      { key: 'pvc_passed', label: 'ผ่านท่อ PVC ครึ่ง', type: 'boolean', points: 20 },
+      { key: 'survivor_rescued', label: 'ช่วยผู้ประสบภัย (ตุ๊กตา)', type: 'boolean', points: 5 },
       { key: 'returned_to_start', label: 'กลับถึงจุดเริ่มต้น', type: 'boolean', points: 50 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 15
@@ -314,14 +314,14 @@ const competitions = [
     category: 'manual', ageGroup: 'open', scoringType: 'POINT', rankingMethod: 'BEST',
     totalRounds: 1, timePerRoundSeconds: 300, setupTimeSeconds: 30,
     scoringCriteria: [
-      { key: 'climbed_stairs',    label: 'ปีนบันไดได้ (20 คะแนน)', type: 'boolean', points: 20 },
-      { key: 'start_point_2',     label: 'วางที่จุดเริ่ม 2 ได้ (ไม่ปีน 10 คะแนน)', type: 'boolean', points: 10 },
-      { key: 'can_picked',        label: 'หยิบกระป๋องออกจากจุด (กระป๋อง)', type: 'number', pointsPerUnit: 5 },
-      { key: 'can_placed',        label: 'วางกระป๋องสำเร็จ (กระป๋อง)', type: 'number', pointsPerUnit: 10 },
-      { key: 'pingpong_picked',   label: 'หยิบลูกปิงปอง (ลูก)', type: 'number', pointsPerUnit: 5 },
-      { key: 'pingpong_placed',   label: 'วางลูกปิงปองสำเร็จ (ลูก)', type: 'number', pointsPerUnit: 5 },
-      { key: 'pvc_passed',        label: 'ผ่านท่อ PVC ครึ่ง', type: 'boolean', points: 20 },
-      { key: 'survivor_rescued',  label: 'ช่วยผู้ประสบภัย (ตุ๊กตา)', type: 'boolean', points: 5 },
+      { key: 'climbed_stairs', label: 'ปีนบันไดได้ (20 คะแนน)', type: 'boolean', points: 20 },
+      { key: 'start_point_2', label: 'วางที่จุดเริ่ม 2 ได้ (ไม่ปีน 10 คะแนน)', type: 'boolean', points: 10 },
+      { key: 'can_picked', label: 'หยิบกระป๋องออกจากจุด (กระป๋อง)', type: 'number', pointsPerUnit: 5 },
+      { key: 'can_placed', label: 'วางกระป๋องสำเร็จ (กระป๋อง)', type: 'number', pointsPerUnit: 10 },
+      { key: 'pingpong_picked', label: 'หยิบลูกปิงปอง (ลูก)', type: 'number', pointsPerUnit: 5 },
+      { key: 'pingpong_placed', label: 'วางลูกปิงปองสำเร็จ (ลูก)', type: 'number', pointsPerUnit: 5 },
+      { key: 'pvc_passed', label: 'ผ่านท่อ PVC ครึ่ง', type: 'boolean', points: 20 },
+      { key: 'survivor_rescued', label: 'ช่วยผู้ประสบภัย (ตุ๊กตา)', type: 'boolean', points: 5 },
       { key: 'returned_to_start', label: 'กลับถึงจุดเริ่มต้น', type: 'boolean', points: 50 }
     ],
     maxTeams: 30, status: 'registration', sortOrder: 16

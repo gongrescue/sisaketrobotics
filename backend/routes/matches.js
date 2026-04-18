@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Match = require('../models/Match');
-const { protect, judgeOrAdmin } = require('../middleware/auth');
+const { protect, adminOnly } = require('../middleware/auth');
 
 // GET /api/matches?competition=
 router.get('/', async (req, res) => {
@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/matches - create match
-router.post('/', protect, judgeOrAdmin, async (req, res) => {
+router.post('/', protect, adminOnly, async (req, res) => {
   try {
     const match = await Match.create({ ...req.body, enteredBy: req.user._id });
     res.status(201).json({ success: true, data: match });
@@ -33,7 +33,7 @@ router.post('/', protect, judgeOrAdmin, async (req, res) => {
 });
 
 // PUT /api/matches/:id/result - record match result
-router.put('/:id/result', protect, judgeOrAdmin, async (req, res) => {
+router.put('/:id/result', protect, adminOnly, async (req, res) => {
   try {
     const { team1Score, team2Score, team1Details, team2Details, notes } = req.body;
     const match = await Match.findById(req.params.id);
@@ -62,7 +62,7 @@ router.put('/:id/result', protect, judgeOrAdmin, async (req, res) => {
 });
 
 // DELETE /api/matches/:id
-router.delete('/:id', protect, judgeOrAdmin, async (req, res) => {
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     await Match.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'ลบคู่แข่งขันเรียบร้อย' });

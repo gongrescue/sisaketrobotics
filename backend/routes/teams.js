@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Team = require('../models/Team');
-const { protect, adminOnly, judgeOrAdmin } = require('../middleware/auth');
+const { protect, adminOnly } = require('../middleware/auth');
 
 // GET /api/teams - list all (with optional filter)
 router.get('/', async (req, res) => {
@@ -37,8 +37,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/teams - create team (admin/judge)
-router.post('/', protect, judgeOrAdmin, async (req, res) => {
+// POST /api/teams - create team (admin)
+router.post('/', protect, adminOnly, async (req, res) => {
   try {
     const team = await Team.create(req.body);
     res.status(201).json({ success: true, data: team });
@@ -48,8 +48,8 @@ router.post('/', protect, judgeOrAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/teams/:id - update (admin/judge)
-router.put('/:id', protect, judgeOrAdmin, async (req, res) => {
+// PUT /api/teams/:id - update (admin)
+router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
     const team = await Team.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
       .populate('competition', 'name code');
@@ -61,7 +61,7 @@ router.put('/:id', protect, judgeOrAdmin, async (req, res) => {
 });
 
 // PATCH /api/teams/:id/checkin - check in team
-router.patch('/:id/checkin', protect, judgeOrAdmin, async (req, res) => {
+router.patch('/:id/checkin', protect, adminOnly, async (req, res) => {
   try {
     const team = await Team.findByIdAndUpdate(
       req.params.id,
