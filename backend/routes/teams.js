@@ -40,6 +40,21 @@ router.get('/:id', async (req, res) => {
 // POST /api/teams - create team (admin)
 router.post('/', protect, adminOnly, async (req, res) => {
   try {
+    if (!req.body.teamNumber || req.body.teamNumber.trim() === '') {
+      const teamsInComp = await Team.find({ competition: req.body.competition }).select('teamNumber').lean();
+      let maxNum = 0;
+      teamsInComp.forEach(t => {
+        if (t.teamNumber) {
+          const match = t.teamNumber.match(/\d+$/);
+          if (match) {
+            const num = parseInt(match[0], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+      });
+      req.body.teamNumber = `T${(maxNum + 1).toString().padStart(3, '0')}`;
+    }
+
     const team = await Team.create(req.body);
     res.status(201).json({ success: true, data: team });
   } catch (error) {

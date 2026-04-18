@@ -715,7 +715,6 @@ async function populateCompSelects() {
 
 function showTeamModal(team = null) {
   document.getElementById('teamId').value = team?._id || '';
-  document.getElementById('teamNumber').value = team?.teamNumber || '';
   document.getElementById('teamName').value = team?.teamName || '';
   document.getElementById('teamSchool').value = team?.schoolName || '';
   document.getElementById('teamCoach').value = team?.coachName || '';
@@ -740,13 +739,12 @@ async function saveTeam() {
   const members = document.getElementById('teamMembers').value.split(',').filter(s => s.trim()).map(n => ({ name: n.trim(), role: 'competitor' }));
   const payload = {
     competition: document.getElementById('teamComp').value,
-    teamNumber: document.getElementById('teamNumber').value.trim(),
     teamName: document.getElementById('teamName').value.trim(),
     schoolName: document.getElementById('teamSchool').value.trim(),
     coachName: document.getElementById('teamCoach').value.trim(),
     members
   };
-  if (!payload.competition || !payload.teamNumber || !payload.teamName || !payload.schoolName) {
+  if (!payload.competition || !payload.teamName || !payload.schoolName) {
     showAlert('teamModalMsg', 'กรุณากรอกข้อมูลที่จำเป็น', 'error'); return;
   }
   try {
