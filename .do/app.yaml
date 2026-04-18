@@ -17,7 +17,6 @@ services:
   - name: api
     # Build จาก Dockerfile ที่ root ของ repo (รวม backend + frontend)
     dockerfile_path: Dockerfile
-    source_dir: /
 
     github:
       repo: gongrescue/sisaketrobotics
@@ -52,22 +51,18 @@ services:
         scope: RUN_TIME
         value: 24h
 
-      # ─── SECRETS — ตั้งค่าใน Dashboard หรือ encrypt ด้วย doctl ───
-      # MONGODB_URI: mongodb+srv://... (Atlas/DO Managed) หรือ connection string
-      # JWT_SECRET : random string ≥ 32 ตัวอักษร (openssl rand -hex 32)
-      - key: MONGODB_URI
-        scope: RUN_TIME
-        type: SECRET
-        value: "REPLACE_ME_IN_DASHBOARD"
-      - key: JWT_SECRET
-        scope: RUN_TIME
-        type: SECRET
-        value: "REPLACE_ME_IN_DASHBOARD"
-
       # FRONTEND_URL ใช้ตัวแปรในตัวของ App Platform — URL ปัจจุบันของ app
       - key: FRONTEND_URL
         scope: RUN_TIME
         value: ${APP_URL}
+
+      # ─── SECRETS — ต้องตั้งใน DO Dashboard (ห้าม commit ค่า plaintext ในไฟล์นี้) ───
+      # ไม่ได้ระบุใน spec เพราะ DO Spec Validator ปฏิเสธ SECRET ที่มีค่า plaintext
+      # วิธีตั้ง:
+      #   Dashboard → App → Settings → App-Level Environment Variables → Edit
+      #   เพิ่ม 2 ตัว (เลือก Encrypt ทั้งคู่):
+      #     - MONGODB_URI = mongodb+srv://USER:PASS@cluster.xxxx.mongodb.net/sisaket_robotics
+      #     - JWT_SECRET  = (openssl rand -hex 32)
 
 # ─── Alerts ───────────────────────────────────────────────────────
 alerts:
