@@ -55,7 +55,13 @@ router.post('/register', protect, adminOnly, async (req, res) => {
 router.get('/me', protect, (req, res) => {
   res.json({
     success: true,
-    user: { id: req.user._id, username: req.user.username, name: req.user.name, role: req.user.role }
+    user: {
+      id: req.user._id,
+      _id: req.user._id,
+      username: req.user.username,
+      name: req.user.name,
+      role: req.user.role
+    }
   });
 });
 
@@ -69,18 +75,64 @@ router.get('/users', protect, adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/auth/users/:id (admin only)
+router.get('/users/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้งาน' });
+    res.json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // PUT /api/auth/users/:id (admin only)
 router.put('/users/:id', protect, adminOnly, async (req, res) => {
   try {
     const { name, role, isActive, password } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้งาน' });
+
+    // Prevent admin from demoting themselves (last-admin safeguard)
+    if (String(user._id) === String(req.user._id) && role && role !== 'admin') {
+      return res.status(400).json({ success: false, message: 'ไม่สามารถเปลี่ยน role ของตัวเองได้' });
+    }
+    // Prevent admin from deactivating themselves
+    if (String(user._id) === String(req.user._id) && isActive === false) {
+      return res.status(400).json({ success: false, message: 'ไม่สามารถระงับบัญชีของตัวเองได้' });
+    }
+
     if (name) user.name = name;
     if (role) user.role = role;
     if (isActive !== undefined) user.isActive = isActive;
     if (password) user.password = password;
     await user.save();
-    res.json({ success: true, user: { id: user._id, username: user.username, name: user.name, role: user.role } });
+    res.json({ success: true, user: { id: user._id, username: user.username, name: user.name, role: user.role, isActive: user.isActive } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/auth/users/:id (admin only)
+router.delete('/users/:id', protect, adminOnly, async (req, res) => {
+  try {
+    // Prevent admin from deleting themselves
+    if (String(req.params.id) === String(req.user._id)) {
+      return res.status(400).json({ success: false, message: 'ไม่สามารถลบบัญชีของตัวเองได้' });
+    }
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้งาน' });
+
+    // Don't allow deleting the last active admin
+    if (user.role === 'admin') {
+      const adminCount = await User.countDocuments({ role: 'admin', isActive: true });
+      if (adminCount <= 1) {
+        return res.status(400).json({ success: false, message: 'ต้องมี admin อย่างน้อย 1 คนในระบบ' });
+      }
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'ลบผู้ใช้งานเรียบร้อย' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

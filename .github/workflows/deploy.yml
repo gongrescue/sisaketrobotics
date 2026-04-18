@@ -1,0 +1,95 @@
+name: Deploy to DigitalOcean
+
+# ─── Trigger ──────────────────────────────────────────────────────
+# - Auto-deploy เมื่อ push เข้า main
+# - Manual trigger ผ่านปุ่ม "Run workflow" บน GitHub
+#
+# หมายเหตุ: DO App Platform มี auto-deploy on push อยู่แล้ว
+#   workflow นี้จะ "sync spec (.do/app.yaml)" + force rebuild
+#   เหมาะเมื่อต้องแก้ไข spec หรือต้องการ force redeploy
+# ──────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.do/app.yaml'              # redeploy เมื่อ spec เปลี่ยน
+      - 'Dockerfile'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:                 # รันด้วยมือได้
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild โดยไม่ใช้ cache'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+jobs:
+  deploy:
+    name: Sync spec & deploy
+    runs-on: ubuntu-latest
+    # ต้องรอให้ CI ผ่านก่อน (ถ้าเป็น push) — optional แต่ปลอดภัยกว่า
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Verify secrets
+        run: |
+          if [ -z "${{ secrets.DO_APP_ID }}" ]; then
+            echo "::error::Missing secret DO_APP_ID"
+            exit 1
+          fi
+
+      - name: Validate app spec
+        run: doctl apps spec validate .do/app.yaml
+
+      - name: Update app spec
+        run: |
+          doctl apps update "${{ secrets.DO_APP_ID }}" \
+            --spec .do/app.yaml \
+            --wait=false
+
+      - name: Trigger deployment
+        id: deploy
+        run: |
+          FORCE="${{ github.event.inputs.force_rebuild || 'false' }}"
+          FLAGS=""
+          if [ "$FORCE" = "true" ]; then FLAGS="--force-rebuild"; fi
+
+          OUT=$(doctl apps create-deployment "${{ secrets.DO_APP_ID }}" $FLAGS --output json)
+          DEPLOY_ID=$(echo "$OUT" | jq -r '.[0].id // .id')
+          echo "deployment_id=$DEPLOY_ID" >> "$GITHUB_OUTPUT"
+          echo "🚀 Deployment ID: $DEPLOY_ID"
+
+      - name: Wait for deployment
+        run: |
+          DEPLOY_ID="${{ steps.deploy.outputs.deployment_id }}"
+          echo "รอให้ deployment $DEPLOY_ID เสร็จ..."
+          for i in $(seq 1 60); do
+            PHASE=$(doctl apps get-deployment "${{ secrets.DO_APP_ID }}" "$DEPLOY_ID" --output json | jq -r '.[0].phase // .phase')
+            echo "[$i/60] Phase: $PHASE"
+            case "$PHASE" in
+              ACTIVE)  echo "✅ Deploy สำเร็จ"; exit 0 ;;
+              ERROR|CANCELED|SUPERSEDED)
+                echo "::error::Deploy ล้มเหลว (phase=$PHASE)"
+                doctl apps logs "${{ secrets.DO_APP_ID }}" --deployment "$DEPLOY_ID" --type build | tail -100 || true
+                exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::warning::Timeout รอ 15 นาที — ตรวจสอบใน DO Dashboard"
+          exit 1
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "### 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| App ID | \`${{ secrets.DO_APP_ID }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment | \`${{ steps.deploy.outputs.deployment_id }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY

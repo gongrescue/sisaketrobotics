@@ -1,0 +1,25 @@
+# ─── Dev override ──────────────────────────────────────────────────────────
+# Compose จะ auto-merge ไฟล์นี้กับ docker-compose.yml เสมอเมื่อรัน
+#   docker compose up
+# ทำให้แก้ไฟล์บน disk เห็นผลทันทีโดยไม่ต้อง rebuild image
+#
+# หากต้องการรันแบบ production (ไม่ใช้ override นี้):
+#   docker compose -f docker-compose.yml up -d --build
+
+services:
+  # ── Backend: bind-mount + nodemon hot reload ─────────────────────────────
+  backend:
+    user: root                        # ใน dev ใช้ root เพื่อเขียน node_modules ได้ (prod ยังเป็น appuser)
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"   # ให้ file watcher เห็นการเปลี่ยนแปลงไฟล์ใน Docker (Mac/Win)
+    volumes:
+      - ./backend:/app                # โค้ดจริงจาก host
+      - /app/node_modules             # anonymous volume กัน node_modules ของ image โดน mount ทับ
+    command: sh -c "npm install --include=dev --no-audit --no-fund --silent && npx nodemon --legacy-watch server.js"
+
+  # ── Frontend: bind-mount + nginx config ที่ปิด cache ─────────────────────
+  frontend:
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro

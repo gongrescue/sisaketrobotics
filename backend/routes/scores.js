@@ -3,7 +3,7 @@ const router = express.Router();
 const Score = require('../models/Score');
 const Team = require('../models/Team');
 const Competition = require('../models/Competition');
-const { protect, judgeOrAdmin } = require('../middleware/auth');
+const { protect, judgeOrAdmin, adminOnly } = require('../middleware/auth');
 
 // Calculate total score based on competition type & criteria
 const calculateScore = (competition, details) => {
@@ -45,6 +45,8 @@ router.get('/', async (req, res) => {
       .populate('team', 'teamNumber teamName schoolName')
       .populate('competition', 'name code scoringType')
       .populate('enteredBy', 'name username')
+      .populate('createdBy', 'name username')
+      .populate('lastEditedBy', 'name username')
       .sort('-createdAt');
 
     res.json({ success: true, count: scores.length, data: scores });
@@ -70,27 +72,37 @@ router.post('/', protect, judgeOrAdmin, async (req, res) => {
     const totalScore = criteriaScore + bonus;
 
     // Upsert (create or update)
+    //  - $set: ข้อมูลปกติ + lastEditedBy (อัปเดตทุกครั้ง)
+    //  - $setOnInsert: createdBy (เฉพาะตอนสร้างเรคคอร์ดใหม่)
     const score = await Score.findOneAndUpdate(
       { team: teamId, competition: competitionId, round },
       {
-        team: teamId,
-        competition: competitionId,
-        round,
-        details: details || {},
-        totalScore,
-        bonusScore: bonus,
-        timeUsedSeconds: timeUsedSeconds || 0,
-        taskCompleted: taskCompleted || false,
-        distanceCm: distanceCm || 0,
-        retries: retries || 0,
-        notes,
-        enteredBy: req.user._id,
-        isValid: true
+        $set: {
+          team: teamId,
+          competition: competitionId,
+          round,
+          details: details || {},
+          totalScore,
+          bonusScore: bonus,
+          timeUsedSeconds: timeUsedSeconds || 0,
+          taskCompleted: taskCompleted || false,
+          distanceCm: distanceCm || 0,
+          retries: retries || 0,
+          notes,
+          enteredBy: req.user._id,      // backward-compat
+          lastEditedBy: req.user._id,
+          isValid: true
+        },
+        $setOnInsert: {
+          createdBy: req.user._id
+        }
       },
-      { new: true, upsert: true, runValidators: true }
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     ).populate('team', 'teamNumber teamName schoolName')
      .populate('competition', 'name code scoringType')
-     .populate('enteredBy', 'name username');
+     .populate('enteredBy', 'name username')
+     .populate('createdBy', 'name username')
+     .populate('lastEditedBy', 'name username');
 
     res.status(201).json({ success: true, data: score });
   } catch (error) {
@@ -125,18 +137,48 @@ router.put('/:id', protect, judgeOrAdmin, async (req, res) => {
     if (isValid !== undefined) existingScore.isValid = isValid;
     if (disqualified !== undefined) existingScore.disqualified = disqualified;
     if (disqualificationReason !== undefined) existingScore.disqualificationReason = disqualificationReason;
-    existingScore.enteredBy = req.user._id;
+
+    // ผู้แก้ไขล่าสุด (อัปเดตทุกครั้งที่ PUT)
+    existingScore.lastEditedBy = req.user._id;
+    existingScore.enteredBy = req.user._id; // backward-compat
+
+    // ถ้าเป็น score เก่าที่ยังไม่มี createdBy ให้ set ครั้งแรกเท่านั้น
+    if (!existingScore.createdBy) existingScore.createdBy = req.user._id;
 
     await existingScore.save();
+    await existingScore.populate([
+      { path: 'team', select: 'teamNumber teamName schoolName' },
+      { path: 'createdBy', select: 'name username' },
+      { path: 'lastEditedBy', select: 'name username' },
+      { path: 'enteredBy', select: 'name username' }
+    ]);
     res.json({ success: true, data: existingScore });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// DELETE /api/scores/:id
-router.delete('/:id', protect, judgeOrAdmin, async (req, res) => {
+// GET /api/scores/:id - get single score
+router.get('/:id', async (req, res) => {
   try {
+    const score = await Score.findById(req.params.id)
+      .populate('team', 'teamNumber teamName schoolName')
+      .populate('competition', 'name code scoringType scoringCriteria totalRounds')
+      .populate('enteredBy', 'name username')
+      .populate('createdBy', 'name username')
+      .populate('lastEditedBy', 'name username');
+    if (!score) return res.status(404).json({ success: false, message: 'ไม่พบคะแนน' });
+    res.json({ success: true, data: score });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/scores/:id (admin only)
+router.delete('/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const score = await Score.findById(req.params.id);
+    if (!score) return res.status(404).json({ success: false, message: 'ไม่พบคะแนน' });
     await Score.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'ลบคะแนนเรียบร้อย' });
   } catch (error) {

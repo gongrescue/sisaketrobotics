@@ -1,0 +1,23 @@
+# Dev artifacts
+**/node_modules
+**/npm-debug.log
+**/.DS_Store
+**/.git
+**/.gitignore
+**/.env
+**/.env.*
+!.env.example
+
+# Docs / dev-only
+Document/
+README.md
+docker-compose.override.yml
+frontend/nginx.dev.conf
+frontend/Dockerfile
+backend/Dockerfile
+
+# CI / IDE
+.github/
+.vscode/
+.idea/
+*.log

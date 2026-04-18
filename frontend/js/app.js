@@ -43,6 +43,15 @@ function formatTime(secs) {
   return m > 0 ? `${m}:${s}` : `${parseFloat(secs).toFixed(2)}s`;
 }
 
+// แสดงเวลาในหน่วย "วินาที" ล้วน ๆ (ใช้กับคอลัมน์ "เวลาดีที่สุด" ซึ่งคำนวนจาก timeUsedSeconds ของแต่ละรอบ)
+// ตัวอย่าง: 95.5 → "95.50 วิ",  0 / Infinity / ไม่มีค่า → "-"
+function formatSeconds(secs) {
+  if (secs === null || secs === undefined) return '-';
+  const n = Number(secs);
+  if (!isFinite(n) || n <= 0) return '-';
+  return `${n.toFixed(2)} วิ`;
+}
+
 function getCategoryIcon(cat) {
   return { autonomous: '🤖', manual: '🕹️', battle: '⚔️', line_following: '🏎️' }[cat] || '🏆';
 }
@@ -60,11 +69,17 @@ function getStatusLabel(status) {
 
 // ─── NAVIGATION ──────────────────────────────────────────────
 
+// Pages that a judge can access (in addition to the always-allowed admin/login)
+const JUDGE_ALLOWED_PAGES = ['home', 'competitions', 'leaderboard', 'comp-detail', 'admin', 'login'];
+
 function navigate(page, data = null) {
-  // Judge can only access score entry (admin page, scores tab) and login
-  if (isJudge() && page !== 'admin' && page !== 'login') {
-    navigate('admin');
-    return;
+  // Restricted users (viewer / unknown roles): only score entry + login
+  if (isRestrictedUser() && page !== 'admin' && page !== 'login') {
+    page = 'admin';
+  }
+  // Judges: allow public pages + score entry, block other pages
+  else if (isJudge() && !JUDGE_ALLOWED_PAGES.includes(page)) {
+    page = 'admin';
   }
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -105,41 +120,76 @@ async function checkAuth() {
   }
 }
 
+function isAdmin() {
+  return !!(currentUser && currentUser.role === 'admin');
+}
+
 function isJudge() {
-  return currentUser && currentUser.role === 'judge';
+  return !!(currentUser && currentUser.role === 'judge');
+}
+
+function isViewer() {
+  return !!(currentUser && currentUser.role === 'viewer');
+}
+
+// Logged-in user that is NOT admin (judge, viewer, ...)
+function isNonAdmin() {
+  return !!(currentUser && currentUser.role && currentUser.role !== 'admin');
+}
+
+// Restricted = logged-in but NOT admin and NOT judge (e.g. viewer or unknown roles)
+// Restricted users can only access the score-entry page.
+// Judges can additionally browse the public pages (home / competitions / leaderboard).
+function isRestrictedUser() {
+  return isNonAdmin() && !isJudge();
+}
+
+function getRoleLabel(role) {
+  return ({
+    admin:  'ผู้ดูแลระบบ',
+    judge:  'กรรมการ',
+    viewer: 'ผู้ชม'
+  })[role] || role || '-';
 }
 
 function updateNavForAuth(loggedIn) {
-  const isAdmin = loggedIn && currentUser && currentUser.role === 'admin';
-  const judge   = loggedIn && isJudge();
+  const admin      = loggedIn && isAdmin();
+  const nonAdmin   = loggedIn && isNonAdmin();
+  const restricted = loggedIn && isRestrictedUser();
 
   document.getElementById('loginNavLink').style.display  = loggedIn ? 'none' : '';
   document.getElementById('logoutNavLink').style.display = loggedIn ? '' : 'none';
-  document.getElementById('adminNavLink').style.display  = isAdmin ? '' : 'none';
-  document.getElementById('judgeNavLink').style.display  = judge   ? '' : 'none';
+  document.getElementById('adminNavLink').style.display  = admin    ? '' : 'none';
+  // "บันทึกคะแนน" quick link appears for any non-admin logged-in user
+  document.getElementById('judgeNavLink').style.display  = nonAdmin ? '' : 'none';
 
-  // Public nav links: hide for judge (they only see score entry)
+  // Public nav links (หน้าหลัก / ประเภทการแข่งขัน / ตารางคะแนน):
+  //   - guest & admin: visible
+  //   - judge: visible (can browse public pages)
+  //   - restricted users (viewer ฯลฯ): hidden
   const publicLinks = ['homeNavLink', 'compsNavLink', 'lbNavLink'];
   publicLinks.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.display = judge ? 'none' : '';
+    if (el) el.style.display = restricted ? 'none' : '';
   });
 
   if (loggedIn && currentUser) {
-    // Hide tabs not available to judge
-    const teamsTabBtn   = document.getElementById('tabBtn-teams');
-    const matchesTabBtn = document.getElementById('tabBtn-matches');
-    const usersTabBtn   = document.getElementById('tabBtn-users');
-    if (teamsTabBtn)   teamsTabBtn.style.display   = judge ? 'none' : '';
-    if (matchesTabBtn) matchesTabBtn.style.display = judge ? 'none' : '';
-    if (usersTabBtn)   usersTabBtn.style.display   = isAdmin ? '' : 'none';
+    // Admin-only tabs (ทีม / จัดการคะแนน / Battle / ผู้ใช้งาน): admin only
+    const teamsTabBtn      = document.getElementById('tabBtn-teams');
+    const scoreTableTabBtn = document.getElementById('tabBtn-scoreTable');
+    const matchesTabBtn    = document.getElementById('tabBtn-matches');
+    const usersTabBtn      = document.getElementById('tabBtn-users');
+    if (teamsTabBtn)      teamsTabBtn.style.display      = admin ? '' : 'none';
+    if (scoreTableTabBtn) scoreTableTabBtn.style.display = admin ? '' : 'none';
+    if (matchesTabBtn)    matchesTabBtn.style.display    = admin ? '' : 'none';
+    if (usersTabBtn)      usersTabBtn.style.display      = admin ? '' : 'none';
 
     const badge = document.getElementById('userBadge');
-    if (badge) badge.textContent = `👤 ${currentUser.name} (${currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'กรรมการ'})`;
+    if (badge) badge.textContent = `👤 ${currentUser.name} (${getRoleLabel(currentUser.role)})`;
 
-    // Update admin page title for judge
+    // Update admin page title for non-admin users
     const adminTitle = document.getElementById('adminPageTitle');
-    if (adminTitle) adminTitle.textContent = judge ? '📝 บันทึกคะแนน' : '⚙️ จัดการระบบ';
+    if (adminTitle) adminTitle.textContent = nonAdmin ? '📝 บันทึกคะแนน' : '⚙️ จัดการระบบ';
   }
 }
 
@@ -169,11 +219,12 @@ async function handleLogin(e) {
 }
 
 function logout() {
-  const wasJudge = isJudge();
+  // Only restricted users (viewer ฯลฯ) go to login after logout; admins & judges return home
+  const wasRestricted = isRestrictedUser();
   token = null; currentUser = null;
   localStorage.removeItem('ssk_token');
   updateNavForAuth(false);
-  navigate(wasJudge ? 'login' : 'home');
+  navigate(wasRestricted ? 'login' : 'home');
   showToast('ออกจากระบบเรียบร้อย', 'info');
 }
 
@@ -385,7 +436,7 @@ function renderRankingTable(rankData, comp) {
               <td><span class="rank-badge rank-${r.rank <= 3 ? r.rank : 'n'}">${r.rank <= 3 ? ['🥇','🥈','🥉'][r.rank-1] : r.rank}</span></td>
               <td><strong>${r.team?.teamName || '-'}</strong><br><small style="color:var(--text-dim)">${r.team?.teamNumber}</small></td>
               <td style="font-size:0.8rem">${r.team?.schoolName || '-'}</td>
-              <td><strong>${r.taskCompleted ? formatTime(r.bestScore) : '–'}</strong></td>
+              <td><strong>${r.taskCompleted ? formatSeconds(r.bestScore) : '–'}</strong></td>
               <td>${r.taskCompleted ? '✅' : '❌'}</td>
             </tr>`).join('')}
         </tbody>
@@ -507,7 +558,7 @@ function renderLbTable(rankData, comp) {
               <td><span class="rank-badge rank-${i < 3 ? i+1 : 'n'}">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</span></td>
               <td><strong>${r.team?.teamName || '-'}</strong><div style="font-size:0.75rem;color:var(--text-dim)">${r.team?.teamNumber || ''}</div></td>
               <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
-              <td style="font-weight:700;color:var(--accent)">${r.taskCompleted ? formatTime(r.bestScore) : '–'}</td>
+              <td style="font-weight:700;color:var(--accent)">${r.taskCompleted ? formatSeconds(r.bestScore) : '–'}</td>
               <td>${r.taskCompleted ? '✅' : `❌ ${r.distanceCm || 0}cm`}</td>
               <td style="color:var(--text-muted)">${r.roundsCompleted}/${comp.totalRounds}</td>
             </tr>`).join('')}
@@ -535,7 +586,7 @@ function renderLbTable(rankData, comp) {
               <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
               <td style="font-weight:700;font-size:1.2rem;color:var(--accent)">${r.finalScore ?? 0}</td>
               ${comp.totalRounds > 1 ? `<td>${s[0]}</td><td>${s[1]}</td><td>${s[2]}</td>` : ''}
-              <td style="color:var(--text-muted);font-size:0.8rem">${r.bestTime !== Infinity ? formatTime(r.bestTime) : '-'}</td>
+              <td style="color:var(--text-muted);font-size:0.8rem">${formatSeconds(r.bestTime)}</td>
             </tr>`;
         }).join('')}
       </tbody>
@@ -547,17 +598,26 @@ function renderLbTable(rankData, comp) {
 function loadAdmin() {
   if (!token) { navigate('login'); return; }
   updateNavForAuth(true);
-  // Judge goes straight to score entry; admin starts on teams tab
-  if (isJudge()) {
+  // Non-admin goes straight to score entry; admin starts on teams tab
+  if (isNonAdmin()) {
     switchAdminTabDirect('scores');
   } else {
     switchAdminTabDirect('teams');
   }
 }
 
+// Tabs that admin-only users can access. Non-admin users are locked to 'scores'.
+const ADMIN_ONLY_TABS = ['teams', 'matches', 'users', 'scoreTable'];
+
 function switchAdminTabDirect(tab) {
-  // Judge cannot switch away from scores tab
-  if (isJudge() && tab !== 'scores') return;
+  // Non-admin users cannot switch away from the scores tab
+  if (isNonAdmin() && tab !== 'scores') {
+    tab = 'scores';
+  }
+  // Extra guard: admin-only tabs require admin role
+  if (ADMIN_ONLY_TABS.includes(tab) && !isAdmin()) {
+    tab = 'scores';
+  }
   document.querySelectorAll('.admin-tab-content').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`adminTab-${tab}`)?.classList.add('active');
@@ -566,12 +626,21 @@ function switchAdminTabDirect(tab) {
   if (btn) btn.classList.add('active');
   if (tab === 'teams') loadTeams();
   else if (tab === 'scores') loadScoreForm();
+  else if (tab === 'scoreTable') loadScoresTableInit();
   else if (tab === 'matches') loadMatchFilters();
   else if (tab === 'users') loadUsers();
 }
 
 function switchAdminTab(tab) {
-  if (isJudge() && tab !== 'scores') return; // guard for judge
+  // Block non-admin from any tab other than scores; block non-admins from admin-only tabs
+  if (isNonAdmin() && tab !== 'scores') {
+    showToast('คุณไม่มีสิทธิ์เข้าถึงส่วนนี้', 'error');
+    return;
+  }
+  if (ADMIN_ONLY_TABS.includes(tab) && !isAdmin()) {
+    showToast('เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+    return;
+  }
   switchAdminTabDirect(tab);
   // Also highlight the clicked button (event.target from inline onclick)
   if (typeof event !== 'undefined' && event && event.target) {
@@ -690,6 +759,15 @@ async function loadScoreForm() {
   await populateCompSelects();
   document.getElementById('scoreCriteriaFields').innerHTML = '';
   document.getElementById('scorePreview').style.display = 'none';
+  // Reset edit mode
+  const editInput = document.getElementById('editingScoreId');
+  if (editInput) editInput.value = '';
+  const banner = document.getElementById('scoreEditBanner');
+  if (banner) banner.style.display = 'none';
+  const title = document.getElementById('scoreFormTitle');
+  if (title) title.textContent = 'บันทึกคะแนน';
+  const submitBtn = document.getElementById('submitScoreBtn');
+  if (submitBtn) submitBtn.textContent = '💾 บันทึกคะแนน';
 }
 
 async function onCompetitionChange() {
@@ -708,9 +786,11 @@ async function onCompetitionChange() {
   const comp = allCompetitions.find(c => c._id === compId);
   if (!comp) return;
 
-  // Show/hide time fields
+  // Show/hide fields by scoringType
+  //   - เวลาที่ใช้ (วินาที): แสดงทุกประเภท (ใช้เป็น tiebreaker / ข้อมูลอ้างอิง)
+  //   - ทำสำเร็จ + ระยะทาง: เฉพาะ TIME scoring
   const isTime = comp.scoringType === 'TIME';
-  if (timeField) timeField.style.display = isTime ? '' : 'none';
+  if (timeField) timeField.style.display = '';
   if (completedField) completedField.style.display = isTime ? '' : 'none';
   if (distanceField) distanceField.style.display = 'none';
 
@@ -774,26 +854,383 @@ function calcPreviewScore(compId) {
   document.getElementById('scorePreviewValue').textContent = total;
 }
 
+// cache ของรายการคะแนนล่าสุด ใช้ให้ editScore หยิบข้อมูลได้โดยไม่ต้องยิง API เพิ่ม
+let recentScoresCache = [];
+
 async function loadRecentScores(compId, teamId) {
   const div = document.getElementById('recentScores');
-  if (!teamId) { div.innerHTML = '<p class="text-muted">เลือกทีมเพื่อดูคะแนน</p>'; return; }
+  if (!teamId) {
+    recentScoresCache = [];
+    div.innerHTML = '<p class="text-muted">เลือกทีมเพื่อดูคะแนน</p>';
+    return;
+  }
   try {
     const res = await apiFetch(`/scores?competition=${compId}&team=${teamId}`);
-    if (!res.data.length) { div.innerHTML = '<p class="text-muted">ยังไม่มีคะแนน</p>'; return; }
-    div.innerHTML = res.data.sort((a,b) => a.round - b.round).map(s => {
-      const isTime = s.competition?.scoringType === 'TIME';
-      const mainScore = isTime ? formatTime(s.timeUsedSeconds) : s.totalScore;
-      const bonusBadge = s.bonusScore ? `<span style="font-size:0.7rem;color:var(--accent);margin-left:4px">+${s.bonusScore}⭐</span>` : '';
-      return `
-      <div class="score-item">
-        <div>
-          <div class="score-item-round">รอบที่ ${s.round}</div>
-          <div style="font-size:0.75rem;color:var(--text-dim)">${new Date(s.updatedAt).toLocaleString('th-TH')}</div>
-        </div>
-        <div class="score-item-score">${mainScore}${bonusBadge}</div>
-      </div>`;
-    }).join('');
+    recentScoresCache = res.data || [];
+    if (!recentScoresCache.length) { div.innerHTML = '<p class="text-muted">ยังไม่มีคะแนน</p>'; return; }
+
+    const admin = isAdmin();
+    const comp  = allCompetitions.find(c => c._id === compId) || recentScoresCache[0].competition;
+    const isTime = comp?.scoringType === 'TIME';
+
+    const sorted = [...recentScoresCache].sort((a, b) => (a.round || 0) - (b.round || 0));
+
+    div.innerHTML = `
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:60px">รอบ</th>
+              <th style="width:110px">⏱ เวลา (วิ)</th>
+              ${isTime ? '<th style="width:80px">สำเร็จ</th><th style="width:90px">ระยะ (ซม.)</th>' : ''}
+              <th style="width:90px">⭐ โบนัส</th>
+              ${isTime ? '' : '<th style="width:80px">รวม</th>'}
+              <th>หมายเหตุ</th>
+              ${admin ? '<th style="width:160px">ผู้บันทึก / แก้ไขล่าสุด</th>' : ''}
+              ${admin ? '<th style="width:90px">จัดการ</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${sorted.map(s => {
+              const creator = s.createdBy?.name || s.enteredBy?.name || '-';
+              const editor  = s.lastEditedBy?.name || s.enteredBy?.name || '-';
+              const updated = s.updatedAt
+                ? new Date(s.updatedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+                : '';
+              const audit = admin ? `
+                <td style="font-size:0.76rem;line-height:1.5">
+                  <div>📝 <strong>${creator}</strong></div>
+                  ${editor !== creator ? `<div style="color:var(--text-dim)">✏️ ${editor}</div>` : ''}
+                  ${updated ? `<div style="color:var(--text-dim);font-size:0.7rem">${updated}</div>` : ''}
+                </td>` : '';
+              const actions = admin ? `
+                <td>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <button class="btn btn-sm btn-outline btn-icon" onclick="editScore('${s._id}')" title="แก้ไข">✏️</button>
+                    <button class="btn btn-sm btn-outline btn-icon" onclick="deleteScore('${s._id}')" title="ลบ" style="color:var(--danger)">🗑️</button>
+                  </div>
+                </td>` : '';
+              return `
+              <tr>
+                <td style="text-align:center;font-weight:600">${s.round}</td>
+                <td style="text-align:center">${s.timeUsedSeconds > 0 ? Number(s.timeUsedSeconds).toFixed(2) : '-'}</td>
+                ${isTime ? `
+                  <td style="text-align:center">${s.taskCompleted ? '✅' : '—'}</td>
+                  <td style="text-align:center">${s.distanceCm > 0 ? s.distanceCm : '-'}</td>
+                ` : ''}
+                <td style="text-align:center">${s.bonusScore ? `+${s.bonusScore}⭐` : '-'}</td>
+                ${isTime ? '' : `<td style="font-weight:700;color:var(--accent);text-align:center">${s.totalScore ?? 0}</td>`}
+                <td style="font-size:0.82rem">${s.notes || '-'}</td>
+                ${audit}
+                ${actions}
+              </tr>
+            `;}).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
   } catch { div.innerHTML = '<p class="text-muted">โหลดไม่สำเร็จ</p>'; }
+}
+
+// ─── EDIT / DELETE SCORE (admin only) ────────────────────────────────────
+
+async function editScore(scoreId) {
+  if (!isAdmin()) { showToast('เฉพาะผู้ดูแลระบบเท่านั้น', 'error'); return; }
+
+  // หยิบจาก cache ก่อน ไม่งั้นยิง API
+  let score = recentScoresCache.find(s => String(s._id) === String(scoreId));
+  if (!score) {
+    try { const res = await apiFetch(`/scores/${scoreId}`); score = res.data; }
+    catch (err) { showToast(err.message, 'error'); return; }
+  }
+  if (!score) return;
+
+  const compId = score.competition?._id || score.competition;
+  const teamId = score.team?._id || score.team;
+
+  // Set competition + rebuild form fields for this competition
+  document.getElementById('scoreCompetition').value = compId;
+  await onCompetitionChange();
+
+  // Now set team + round
+  document.getElementById('scoreTeam').value = teamId;
+  document.getElementById('scoreRound').value = score.round;
+
+  // Fill criteria details
+  const comp = allCompetitions.find(c => c._id === compId);
+  if (comp?.scoringCriteria?.length && score.details) {
+    comp.scoringCriteria.forEach(cr => {
+      const el = document.getElementById(`crit_${cr.key}`);
+      if (!el) return;
+      const val = score.details[cr.key];
+      if (cr.type === 'boolean') el.checked = !!val;
+      else el.value = val ?? 0;
+    });
+  }
+
+  // Common fields
+  if (document.getElementById('scoreTime'))       document.getElementById('scoreTime').value       = score.timeUsedSeconds || '';
+  if (document.getElementById('scoreCompleted')) document.getElementById('scoreCompleted').checked = !!score.taskCompleted;
+  if (document.getElementById('scoreDistance'))  document.getElementById('scoreDistance').value   = score.distanceCm || '';
+  if (document.getElementById('scoreBonusScore')) document.getElementById('scoreBonusScore').value = score.bonusScore || 0;
+  if (document.getElementById('scoreNotes'))     document.getElementById('scoreNotes').value      = score.notes || '';
+
+  // Switch form to edit mode
+  document.getElementById('editingScoreId').value = scoreId;
+  document.getElementById('scoreFormTitle').textContent = 'แก้ไขคะแนน';
+  document.getElementById('scoreEditRound').textContent = score.round;
+  document.getElementById('scoreEditBanner').style.display = 'flex';
+  document.getElementById('submitScoreBtn').textContent = '💾 บันทึกการแก้ไข';
+
+  calcPreviewScore(compId);
+  loadRecentScores(compId, teamId);
+  // เลื่อนขึ้นบนฟอร์มเพื่อให้เห็น edit banner
+  document.getElementById('scoreFormTitle')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelEditScore() {
+  document.getElementById('editingScoreId').value = '';
+  document.getElementById('scoreFormTitle').textContent = 'บันทึกคะแนน';
+  document.getElementById('scoreEditBanner').style.display = 'none';
+  document.getElementById('submitScoreBtn').textContent = '💾 บันทึกคะแนน';
+
+  // reset criteria + common fields
+  const compId = document.getElementById('scoreCompetition').value;
+  const comp = allCompetitions.find(c => c._id === compId);
+  comp?.scoringCriteria?.forEach(cr => {
+    const el = document.getElementById(`crit_${cr.key}`);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = false; else el.value = 0;
+  });
+  if (document.getElementById('scoreTime'))       document.getElementById('scoreTime').value = '';
+  if (document.getElementById('scoreCompleted')) document.getElementById('scoreCompleted').checked = false;
+  if (document.getElementById('scoreDistance'))  document.getElementById('scoreDistance').value = '';
+  if (document.getElementById('scoreBonusScore')) document.getElementById('scoreBonusScore').value = 0;
+  if (document.getElementById('scoreNotes'))     document.getElementById('scoreNotes').value = '';
+  if (compId) calcPreviewScore(compId);
+}
+
+async function deleteScore(scoreId) {
+  if (!isAdmin()) { showToast('เฉพาะผู้ดูแลระบบเท่านั้น', 'error'); return; }
+  const s = recentScoresCache.find(x => String(x._id) === String(scoreId));
+  const label = s ? `รอบที่ ${s.round}` : 'คะแนนนี้';
+  if (!confirm(`ต้องการลบ ${label} หรือไม่?\n\nการลบไม่สามารถกู้คืนได้`)) return;
+  try {
+    await apiFetch(`/scores/${scoreId}`, { method: 'DELETE' });
+    showToast('ลบคะแนนเรียบร้อย ✅', 'success');
+    // หากกำลังแก้ไขคะแนนนี้อยู่ ให้ยกเลิกโหมดแก้ไข
+    if (document.getElementById('editingScoreId').value === String(scoreId)) {
+      cancelEditScore();
+    }
+    const compId = document.getElementById('scoreCompetition').value;
+    const teamId = document.getElementById('scoreTeam').value;
+    loadRecentScores(compId, teamId);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ─── EDITABLE SCORES TABLE (admin only) ──────────────────────────────────
+
+// cache ของคะแนนทั้งหมดที่แสดงในตาราง ใช้ตรวจค่าเดิมตอนเซฟ
+let scoreTableCache = [];
+
+// เรียกครั้งแรกเมื่อเข้า tab เพื่อ populate ตัวกรอง (ประเภท/ทีม)
+async function loadScoresTableInit() {
+  if (!isAdmin()) return;
+  await populateCompSelects();
+  // เติม option ให้ dropdown ประเภท (ใช้ค่าของ scoreCompetition เป็นต้นแบบ)
+  const compSel = document.getElementById('scoreTableCompFilter');
+  if (compSel) {
+    const current = compSel.value;
+    compSel.innerHTML = '<option value="">-- เลือกประเภทการแข่งขัน --</option>' +
+      allCompetitions.map(c =>
+        `<option value="${c._id}" ${c._id === current ? 'selected' : ''}>${c.name.substring(0, 60)}</option>`
+      ).join('');
+  }
+  // เติม dropdown ทีม (ถ้ามีการเลือกประเภทไว้ก่อน)
+  await refreshScoreTableTeamFilter();
+  loadScoresTable();
+}
+
+async function refreshScoreTableTeamFilter() {
+  const compId = document.getElementById('scoreTableCompFilter')?.value || '';
+  const teamSel = document.getElementById('scoreTableTeamFilter');
+  if (!teamSel) return;
+  const current = teamSel.value;
+  if (!compId) {
+    teamSel.innerHTML = '<option value="">ทุกทีม</option>';
+    return;
+  }
+  try {
+    const res = await apiFetch(`/teams?competition=${compId}`);
+    teamSel.innerHTML = '<option value="">ทุกทีม</option>' +
+      (res.data || []).map(t =>
+        `<option value="${t._id}" ${t._id === current ? 'selected' : ''}>${t.teamNumber} · ${t.teamName}</option>`
+      ).join('');
+  } catch { /* ignore */ }
+}
+
+async function loadScoresTable() {
+  if (!isAdmin()) return;
+  const container = document.getElementById('scoreTableContainer');
+  if (!container) return;
+
+  const compId  = document.getElementById('scoreTableCompFilter')?.value || '';
+  const teamId  = document.getElementById('scoreTableTeamFilter')?.value || '';
+  const round   = document.getElementById('scoreTableRoundFilter')?.value || '';
+
+  // เมื่อเปลี่ยนประเภท ให้รีเฟรช dropdown ทีมใหม่ด้วย
+  await refreshScoreTableTeamFilter();
+
+  if (!compId) {
+    container.innerHTML = '<p class="text-muted text-center p-4">เลือกประเภทการแข่งขันเพื่อดูและแก้ไขคะแนน</p>';
+    scoreTableCache = [];
+    return;
+  }
+
+  container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>กำลังโหลดคะแนน...</p></div>';
+
+  try {
+    const qs = new URLSearchParams({ competition: compId });
+    if (teamId) qs.set('team', teamId);
+    if (round)  qs.set('round', round);
+    const res = await apiFetch(`/scores?${qs.toString()}`);
+    const scores = res.data || [];
+    scoreTableCache = scores;
+
+    if (!scores.length) {
+      container.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📭</div><p class="text-muted">ยังไม่มีคะแนนในเงื่อนไขที่เลือก</p></div>';
+      return;
+    }
+
+    const comp = allCompetitions.find(c => c._id === compId);
+    const isTime = comp?.scoringType === 'TIME';
+
+    // เรียงโดย: ทีม → รอบ
+    scores.sort((a, b) => {
+      const an = a.team?.teamNumber || '';
+      const bn = b.team?.teamNumber || '';
+      if (an !== bn) return an.localeCompare(bn);
+      return (a.round || 0) - (b.round || 0);
+    });
+
+    container.innerHTML = `
+      <table class="data-table" id="scoresDataTable">
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th>ทีม</th>
+            <th style="width:70px">รอบ</th>
+            <th style="width:120px">⏱ เวลา (วิ)</th>
+            ${isTime ? '<th style="width:100px">สำเร็จ</th><th style="width:110px">ระยะ (ซม.)</th>' : ''}
+            <th style="width:110px">⭐ โบนัส</th>
+            ${isTime ? '' : '<th style="width:100px">รวม</th>'}
+            <th>หมายเหตุ</th>
+            <th style="width:60px">✓</th>
+            <th style="width:170px">ผู้บันทึก / แก้ไขล่าสุด</th>
+            <th style="width:140px">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${scores.map((s, i) => {
+            const creator = s.createdBy?.name || s.enteredBy?.name || '-';
+            const editor  = s.lastEditedBy?.name || s.enteredBy?.name || '-';
+            const updated = s.updatedAt ? new Date(s.updatedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '';
+            return `
+            <tr data-score-id="${s._id}">
+              <td>${i + 1}</td>
+              <td>
+                <div style="font-weight:600">${s.team?.teamNumber || '-'}</div>
+                <div style="font-size:0.78rem;color:var(--text-dim)">${s.team?.teamName || ''}</div>
+              </td>
+              <td style="text-align:center">${s.round}</td>
+              <td>
+                <input type="number" class="form-input form-input-sm" data-field="timeUsedSeconds"
+                       value="${s.timeUsedSeconds || 0}" min="0" step="0.01" style="width:100%">
+              </td>
+              ${isTime ? `
+                <td style="text-align:center">
+                  <input type="checkbox" data-field="taskCompleted" ${s.taskCompleted ? 'checked' : ''}>
+                </td>
+                <td>
+                  <input type="number" class="form-input form-input-sm" data-field="distanceCm"
+                         value="${s.distanceCm || 0}" min="0" step="0.1" style="width:100%">
+                </td>
+              ` : ''}
+              <td>
+                <input type="number" class="form-input form-input-sm" data-field="bonusScore"
+                       value="${s.bonusScore || 0}" step="1" style="width:100%">
+              </td>
+              ${isTime ? '' : `<td style="font-weight:700;color:var(--accent);text-align:center">${s.totalScore ?? 0}</td>`}
+              <td>
+                <input type="text" class="form-input form-input-sm" data-field="notes"
+                       value="${(s.notes || '').replace(/"/g, '&quot;')}" placeholder="-" style="width:100%">
+              </td>
+              <td style="text-align:center">
+                <input type="checkbox" data-field="isValid" ${s.isValid !== false ? 'checked' : ''} title="ใช้ได้">
+              </td>
+              <td style="font-size:0.76rem;line-height:1.5">
+                <div>📝 <strong>${creator}</strong></div>
+                ${editor !== creator ? `<div style="color:var(--text-dim)">✏️ ${editor}</div>` : ''}
+                ${updated ? `<div style="color:var(--text-dim);font-size:0.7rem">${updated}</div>` : ''}
+              </td>
+              <td>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  <button class="btn btn-sm btn-primary btn-icon" onclick="saveScoreRow('${s._id}')" title="บันทึก">💾</button>
+                  <button class="btn btn-sm btn-outline btn-icon" onclick="openScoreInForm('${s._id}')" title="แก้ไขเต็ม">✏️</button>
+                  <button class="btn btn-sm btn-outline btn-icon" onclick="deleteScoreFromTable('${s._id}')" title="ลบ" style="color:var(--danger)">🗑️</button>
+                </div>
+              </td>
+            </tr>
+          `;}).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-error">โหลดคะแนนไม่สำเร็จ: ${err.message}</div>`;
+  }
+}
+
+// เก็บค่าที่แก้ในแถว แล้ว PUT ไปที่ backend
+async function saveScoreRow(scoreId) {
+  if (!isAdmin()) { showToast('เฉพาะผู้ดูแลระบบเท่านั้น', 'error'); return; }
+  const row = document.querySelector(`tr[data-score-id="${scoreId}"]`);
+  if (!row) return;
+
+  const payload = {};
+  row.querySelectorAll('[data-field]').forEach(el => {
+    const field = el.getAttribute('data-field');
+    if (el.type === 'checkbox') payload[field] = el.checked;
+    else if (el.type === 'number') payload[field] = parseFloat(el.value) || 0;
+    else payload[field] = el.value;
+  });
+
+  try {
+    await apiFetch(`/scores/${scoreId}`, { method: 'PUT', body: JSON.stringify(payload) });
+    showToast('บันทึกสำเร็จ ✅', 'success');
+    // รีเฟรชตารางเพื่อให้คอลัมน์ "รวม" คำนวนใหม่
+    loadScoresTable();
+  } catch (err) {
+    showToast(`บันทึกไม่สำเร็จ: ${err.message}`, 'error');
+  }
+}
+
+// เปิดฟอร์มบันทึกคะแนนแบบเต็ม (สำหรับแก้ criteria detail ที่ inline table ไม่มี)
+async function openScoreInForm(scoreId) {
+  switchAdminTabDirect('scores');
+  // รอ tab render เสร็จก่อน
+  setTimeout(() => editScore(scoreId), 100);
+}
+
+async function deleteScoreFromTable(scoreId) {
+  if (!isAdmin()) { showToast('เฉพาะผู้ดูแลระบบเท่านั้น', 'error'); return; }
+  const s = scoreTableCache.find(x => String(x._id) === String(scoreId));
+  const label = s ? `${s.team?.teamNumber || ''} รอบที่ ${s.round}` : 'คะแนนนี้';
+  if (!confirm(`ต้องการลบ ${label} หรือไม่?\n\nการลบไม่สามารถกู้คืนได้`)) return;
+  try {
+    await apiFetch(`/scores/${scoreId}`, { method: 'DELETE' });
+    showToast('ลบคะแนนเรียบร้อย ✅', 'success');
+    loadScoresTable();
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 async function submitScore() {
@@ -801,6 +1238,7 @@ async function submitScore() {
   const teamId = document.getElementById('scoreTeam').value;
   const round = parseInt(document.getElementById('scoreRound').value);
   const notes = document.getElementById('scoreNotes').value;
+  const editingId = document.getElementById('editingScoreId')?.value || '';
 
   if (!compId || !teamId) { showAlert('scoreMsg', 'กรุณาเลือกประเภทและทีม', 'error'); return; }
 
@@ -815,8 +1253,8 @@ async function submitScore() {
     });
   }
 
-  const payload = {
-    team: teamId, competition: compId, round, details, notes,
+  const commonPayload = {
+    details, notes,
     timeUsedSeconds: parseFloat(document.getElementById('scoreTime')?.value) || 0,
     taskCompleted: document.getElementById('scoreCompleted')?.checked || false,
     distanceCm: parseFloat(document.getElementById('scoreDistance')?.value) || 0,
@@ -824,19 +1262,29 @@ async function submitScore() {
   };
 
   try {
-    await apiFetch('/scores', { method: 'POST', body: JSON.stringify(payload) });
-    showToast('บันทึกคะแนนสำเร็จ ✅', 'success');
-    showAlert('scoreMsg', 'บันทึกคะแนนเรียบร้อยแล้ว', 'success');
+    if (editingId) {
+      // Edit mode: PUT existing score
+      await apiFetch(`/scores/${editingId}`, { method: 'PUT', body: JSON.stringify(commonPayload) });
+      showToast('แก้ไขคะแนนสำเร็จ ✅', 'success');
+      showAlert('scoreMsg', 'บันทึกการแก้ไขเรียบร้อยแล้ว', 'success');
+      cancelEditScore();
+    } else {
+      // Create/upsert mode: POST
+      const payload = { team: teamId, competition: compId, round, ...commonPayload };
+      await apiFetch('/scores', { method: 'POST', body: JSON.stringify(payload) });
+      showToast('บันทึกคะแนนสำเร็จ ✅', 'success');
+      showAlert('scoreMsg', 'บันทึกคะแนนเรียบร้อยแล้ว', 'success');
+      // Reset fields only in create mode
+      comp?.scoringCriteria?.forEach(cr => {
+        const el = document.getElementById(`crit_${cr.key}`);
+        if (el) { el.type === 'checkbox' ? el.checked = false : el.value = 0; }
+      });
+      if (document.getElementById('scoreTime')) document.getElementById('scoreTime').value = '';
+      if (document.getElementById('scoreCompleted')) document.getElementById('scoreCompleted').checked = false;
+      if (document.getElementById('scoreBonusScore')) document.getElementById('scoreBonusScore').value = 0;
+      calcPreviewScore(compId);
+    }
     loadRecentScores(compId, teamId);
-    // Reset fields
-    comp?.scoringCriteria?.forEach(cr => {
-      const el = document.getElementById(`crit_${cr.key}`);
-      if (el) { el.type === 'checkbox' ? el.checked = false : el.value = 0; }
-    });
-    if (document.getElementById('scoreTime')) document.getElementById('scoreTime').value = '';
-    if (document.getElementById('scoreCompleted')) document.getElementById('scoreCompleted').checked = false;
-    if (document.getElementById('scoreBonusScore')) document.getElementById('scoreBonusScore').value = 0;
-    calcPreviewScore(compId);
   } catch (err) { showAlert('scoreMsg', err.message, 'error'); }
 }
 
@@ -973,51 +1421,142 @@ async function showMatchResult(matchId) {
 
 // ─── USERS ────────────────────────────────────────────────────
 
+// Cache the latest users list so edit can fill the modal without an extra request
+let usersCache = [];
+
+function getCurrentUserId() {
+  return currentUser && (currentUser.id || currentUser._id);
+}
+
 async function loadUsers() {
   try {
     const res = await apiFetch('/auth/users');
+    usersCache = res.data || [];
+    const myId = String(getCurrentUserId() || '');
     document.getElementById('usersList').innerHTML = `
       <div class="table-container">
         <table class="data-table">
-          <thead><tr><th>#</th><th>ชื่อผู้ใช้</th><th>ชื่อ</th><th>บทบาท</th><th>สถานะ</th></tr></thead>
+          <thead><tr><th>#</th><th>ชื่อผู้ใช้</th><th>ชื่อ</th><th>บทบาท</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
           <tbody>
-            ${res.data.map((u, i) => `
+            ${usersCache.map((u, i) => {
+              const isSelf = String(u._id) === myId;
+              return `
               <tr>
                 <td>${i+1}</td>
-                <td><strong>${u.username}</strong></td>
+                <td><strong>${u.username}</strong>${isSelf ? ' <span class="tag tag-auto" style="font-size:0.65rem">คุณ</span>' : ''}</td>
                 <td>${u.name}</td>
-                <td><span class="tag ${u.role==='admin'?'tag-battle':'tag-auto'}">${u.role}</span></td>
+                <td><span class="tag ${u.role==='admin'?'tag-battle':u.role==='judge'?'tag-auto':'tag-age'}">${getRoleLabel(u.role)}</span></td>
                 <td>${u.isActive ? '✅ ใช้งาน' : '❌ ระงับ'}</td>
-              </tr>`).join('')}
+                <td>
+                  <button class="btn btn-sm btn-outline btn-icon" onclick="editUser('${u._id}')" title="แก้ไข">✏️</button>
+                  ${isSelf ? '' : `
+                    <button class="btn btn-sm btn-outline btn-icon" onclick="toggleUserActive('${u._id}', ${!u.isActive})" title="${u.isActive ? 'ระงับ' : 'เปิดใช้งาน'}">${u.isActive ? '🚫' : '✅'}</button>
+                    <button class="btn btn-sm btn-outline btn-icon" onclick="deleteUser('${u._id}')" title="ลบ" style="color:var(--danger)">🗑️</button>
+                  `}
+                </td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>`;
   } catch (err) { document.getElementById('usersList').innerHTML = `<p>${err.message}</p>`; }
 }
 
-function showUserModal() {
-  document.getElementById('newUsername').value = '';
+function showUserModal(user = null) {
+  const editing = !!user;
+  document.getElementById('userModalTitle').textContent = editing ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งาน';
+  document.getElementById('userId').value = editing ? user._id : '';
+  document.getElementById('newUsername').value = editing ? user.username : '';
+  document.getElementById('newUsername').disabled = editing;
+  document.getElementById('usernameHint').style.display = editing ? '' : 'none';
   document.getElementById('newPassword').value = '';
-  document.getElementById('newName').value = '';
-  document.getElementById('newRole').value = 'judge';
+  document.getElementById('passwordLabel').textContent = editing ? 'รหัสผ่านใหม่' : 'รหัสผ่าน';
+  document.getElementById('passwordHint').style.display = editing ? '' : 'none';
+  document.getElementById('newName').value = editing ? user.name : '';
+  document.getElementById('newRole').value = editing ? user.role : 'judge';
+  // Active toggle: only show when editing and not editing yourself
+  const showActiveField = editing && String(user._id) !== String(getCurrentUserId() || '');
+  document.getElementById('userActiveField').style.display = showActiveField ? '' : 'none';
+  document.getElementById('newIsActive').checked = editing ? user.isActive !== false : true;
+  // Disable role change when editing yourself (last-admin safeguard)
+  document.getElementById('newRole').disabled = editing && String(user._id) === String(getCurrentUserId() || '');
   document.getElementById('userModalMsg').style.display = 'none';
   showModal('userModal');
 }
 
-async function saveUser() {
-  const payload = {
-    username: document.getElementById('newUsername').value.trim(),
-    password: document.getElementById('newPassword').value,
-    name: document.getElementById('newName').value.trim(),
-    role: document.getElementById('newRole').value
-  };
-  if (!payload.username || !payload.password || !payload.name) {
-    showAlert('userModalMsg', 'กรุณากรอกข้อมูลให้ครบ', 'error'); return;
+async function editUser(id) {
+  // Try cache first; fall back to API
+  let user = usersCache.find(u => String(u._id) === String(id));
+  if (!user) {
+    try {
+      const res = await apiFetch(`/auth/users/${id}`);
+      user = res.data;
+    } catch (err) { showToast(err.message, 'error'); return; }
   }
+  showUserModal(user);
+}
+
+async function deleteUser(id) {
+  const user = usersCache.find(u => String(u._id) === String(id));
+  const label = user ? `${user.username} (${user.name})` : 'ผู้ใช้งานนี้';
+  if (!confirm(`ต้องการลบ ${label} หรือไม่?\n\nการลบไม่สามารถกู้คืนได้`)) return;
   try {
-    await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
-    showToast('เพิ่มผู้ใช้งานสำเร็จ ✅', 'success'); closeModal(); loadUsers();
-  } catch (err) { showAlert('userModalMsg', err.message, 'error'); }
+    await apiFetch(`/auth/users/${id}`, { method: 'DELETE' });
+    showToast('ลบผู้ใช้งานเรียบร้อย ✅', 'success');
+    loadUsers();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function toggleUserActive(id, makeActive) {
+  try {
+    await apiFetch(`/auth/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ isActive: makeActive })
+    });
+    showToast(makeActive ? 'เปิดใช้งานบัญชีแล้ว ✅' : 'ระงับบัญชีแล้ว 🚫', 'success');
+    loadUsers();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function saveUser() {
+  const id = document.getElementById('userId').value;
+  const editing = !!id;
+  const username = document.getElementById('newUsername').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const name = document.getElementById('newName').value.trim();
+  const role = document.getElementById('newRole').value;
+
+  if (editing) {
+    if (!name) { showAlert('userModalMsg', 'กรุณากรอกชื่อ-นามสกุล', 'error'); return; }
+    const payload = { name, role };
+    if (password) {
+      if (password.length < 6) {
+        showAlert('userModalMsg', 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 'error'); return;
+      }
+      payload.password = password;
+    }
+    if (document.getElementById('userActiveField').style.display !== 'none') {
+      payload.isActive = document.getElementById('newIsActive').checked;
+    }
+    try {
+      await apiFetch(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      showToast('บันทึกการแก้ไขเรียบร้อย ✅', 'success'); closeModal(); loadUsers();
+    } catch (err) { showAlert('userModalMsg', err.message, 'error'); }
+  } else {
+    if (!username || !password || !name) {
+      showAlert('userModalMsg', 'กรุณากรอกข้อมูลให้ครบ', 'error'); return;
+    }
+    if (password.length < 6) {
+      showAlert('userModalMsg', 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 'error'); return;
+    }
+    try {
+      await apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ username, password, name, role })
+      });
+      showToast('เพิ่มผู้ใช้งานสำเร็จ ✅', 'success'); closeModal(); loadUsers();
+    } catch (err) { showAlert('userModalMsg', err.message, 'error'); }
+  }
 }
 
 // ─── MODALS ───────────────────────────────────────────────────

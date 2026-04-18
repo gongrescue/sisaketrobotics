@@ -147,10 +147,11 @@
       <div class="user-badge" id="userBadge"></div>
     </div>
     <div class="admin-tabs">
-      <button class="tab-btn active" id="tabBtn-teams"   onclick="switchAdminTab('teams')">👥 ทีม</button>
+      <button class="tab-btn active" id="tabBtn-teams"   onclick="switchAdminTab('teams')"   style="display:none">👥 ทีม</button>
       <button class="tab-btn"        id="tabBtn-scores"  onclick="switchAdminTab('scores')">📝 บันทึกคะแนน</button>
-      <button class="tab-btn"        id="tabBtn-matches" onclick="switchAdminTab('matches')">⚔️ Battle</button>
-      <button class="tab-btn"        id="tabBtn-users"   onclick="switchAdminTab('users')" style="display:none">👤 ผู้ใช้งาน</button>
+      <button class="tab-btn"        id="tabBtn-scoreTable" onclick="switchAdminTab('scoreTable')" style="display:none">📊 จัดการคะแนน</button>
+      <button class="tab-btn"        id="tabBtn-matches" onclick="switchAdminTab('matches')" style="display:none">⚔️ Battle</button>
+      <button class="tab-btn"        id="tabBtn-users"   onclick="switchAdminTab('users')"   style="display:none">👤 ผู้ใช้งาน</button>
     </div>
 
     <!-- TEAMS TAB -->
@@ -173,7 +174,12 @@
     <div id="adminTab-scores" class="admin-tab-content">
       <div class="score-entry-container">
         <div class="score-entry-form-wrapper">
-          <h3 class="form-section-title">บันทึกคะแนน</h3>
+          <h3 class="form-section-title" id="scoreFormTitle">บันทึกคะแนน</h3>
+          <div id="scoreEditBanner" class="alert alert-info" style="display:none;align-items:center;justify-content:space-between;gap:0.5rem">
+            <span>✏️ กำลังแก้ไขคะแนนที่บันทึกไว้ (รอบที่ <span id="scoreEditRound">-</span>)</span>
+            <button type="button" class="btn btn-sm btn-outline" onclick="cancelEditScore()">ยกเลิก</button>
+          </div>
+          <input type="hidden" id="editingScoreId" value="">
           <div class="form-group">
             <label class="form-label">ประเภทการแข่งขัน</label>
             <select class="form-input" id="scoreCompetition" onchange="onCompetitionChange()">
@@ -196,8 +202,8 @@
           </div>
           <div id="scoreCriteriaFields"></div>
           <div class="form-group" id="timeField">
-            <label class="form-label">เวลาที่ใช้ (วินาที)</label>
-            <input type="number" class="form-input" id="scoreTime" min="0" placeholder="เช่น 95.5">
+            <label class="form-label">⏱ เวลาที่ใช้ (วินาที)</label>
+            <input type="number" class="form-input" id="scoreTime" min="0" step="0.01" placeholder="เช่น 95.50">
           </div>
           <div class="form-group" id="completedField">
             <label class="form-label">
@@ -221,12 +227,37 @@
             <div class="score-preview-value" id="scorePreviewValue">0</div>
           </div>
           <div id="scoreMsg" class="alert" style="display:none"></div>
-          <button class="btn btn-primary btn-full" onclick="submitScore()">💾 บันทึกคะแนน</button>
+          <button class="btn btn-primary btn-full" id="submitScoreBtn" onclick="submitScore()">💾 บันทึกคะแนน</button>
         </div>
         <div class="score-recent-wrapper">
           <h3 class="form-section-title">คะแนนล่าสุด</h3>
           <div id="recentScores"><p class="text-muted">เลือกประเภทและทีมเพื่อดูคะแนน</p></div>
         </div>
+      </div>
+    </div>
+
+    <!-- SCORE TABLE TAB (admin only) -->
+    <div id="adminTab-scoreTable" class="admin-tab-content">
+      <div class="admin-toolbar" style="flex-wrap:wrap;gap:0.5rem">
+        <select class="filter-select" id="scoreTableCompFilter" onchange="loadScoresTable()">
+          <option value="">-- เลือกประเภทการแข่งขัน --</option>
+        </select>
+        <select class="filter-select" id="scoreTableTeamFilter" onchange="loadScoresTable()">
+          <option value="">ทุกทีม</option>
+        </select>
+        <select class="filter-select" id="scoreTableRoundFilter" onchange="loadScoresTable()">
+          <option value="">ทุกรอบ</option>
+          <option value="1">รอบที่ 1</option>
+          <option value="2">รอบที่ 2</option>
+          <option value="3">รอบที่ 3</option>
+        </select>
+        <button class="btn btn-sm btn-outline" onclick="loadScoresTable()">🔄 รีเฟรช</button>
+        <span class="text-muted" style="font-size:0.78rem;margin-left:auto">
+          💡 แก้ไขค่าในช่องแล้วกด 💾 เพื่อบันทึก
+        </span>
+      </div>
+      <div class="table-container" id="scoreTableContainer">
+        <p class="text-muted text-center p-4">เลือกประเภทการแข่งขันเพื่อดูและแก้ไขคะแนน</p>
       </div>
     </div>
 
@@ -317,17 +348,20 @@
 <!-- User Modal -->
 <div class="modal" id="userModal">
   <div class="modal-header">
-    <h3>เพิ่มผู้ใช้งาน</h3>
+    <h3 id="userModalTitle">เพิ่มผู้ใช้งาน</h3>
     <button class="modal-close" onclick="closeModal()">✕</button>
   </div>
   <div class="modal-body">
+    <input type="hidden" id="userId">
     <div class="form-group">
       <label class="form-label">ชื่อผู้ใช้</label>
       <input type="text" class="form-input" id="newUsername" required>
+      <small id="usernameHint" class="text-muted" style="display:none;font-size:0.75rem">* ไม่สามารถแก้ไขชื่อผู้ใช้ได้</small>
     </div>
     <div class="form-group">
-      <label class="form-label">รหัสผ่าน</label>
-      <input type="password" class="form-input" id="newPassword" required>
+      <label class="form-label" id="passwordLabel">รหัสผ่าน</label>
+      <input type="password" class="form-input" id="newPassword">
+      <small id="passwordHint" class="text-muted" style="display:none;font-size:0.75rem">* เว้นว่างหากไม่ต้องการเปลี่ยนรหัสผ่าน</small>
     </div>
     <div class="form-group">
       <label class="form-label">ชื่อ-นามสกุล</label>
@@ -337,8 +371,14 @@
       <label class="form-label">บทบาท</label>
       <select class="form-input" id="newRole">
         <option value="judge">กรรมการ (Judge)</option>
+        <option value="viewer">ผู้ชม (Viewer)</option>
         <option value="admin">ผู้ดูแลระบบ (Admin)</option>
       </select>
+    </div>
+    <div class="form-group" id="userActiveField" style="display:none">
+      <label class="form-label">
+        <input type="checkbox" id="newIsActive" checked> เปิดใช้งานบัญชีนี้
+      </label>
     </div>
     <div id="userModalMsg" class="alert" style="display:none"></div>
   </div>

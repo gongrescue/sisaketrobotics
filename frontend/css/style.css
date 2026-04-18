@@ -261,6 +261,7 @@ body {
 }
 .form-input:focus { outline: none; border-color: var(--primary-light); background: var(--bg2); }
 .form-input::placeholder { color: var(--text-dim); }
+.form-input-sm { padding: 5px 8px !important; font-size: 0.82rem !important; min-width: 70px; }
 select.form-input { cursor: pointer; }
 input[type="checkbox"] { width: auto; margin-right: 6px; accent-color: var(--primary-light); }
 

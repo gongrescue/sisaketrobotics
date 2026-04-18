@@ -42,7 +42,19 @@ const scoreSchema = new mongoose.Schema({
   disqualified: { type: Boolean, default: false },
   disqualificationReason: String,
 
-  // Who entered the score
+  // ผู้บันทึกคะแนนครั้งแรก (set on insert เท่านั้น)
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+
+  // ผู้แก้ไขล่าสุด (update ทุกครั้งที่บันทึก/แก้ไข)
+  lastEditedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+
+  // เก็บไว้เพื่อ backward-compat (alias ของ lastEditedBy)
   enteredBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
