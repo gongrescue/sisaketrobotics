@@ -407,6 +407,9 @@ async function loadCompDetail(compId) {
                   </tr>`).join('')}
               </tbody>
             </table>
+            <div style="margin-top:1rem;font-size:0.85rem;color:var(--danger);font-weight:600;">
+              **หมายเหตุ : เกณฑ์ที่แสดงเป็นเพียงเกณฑ์การให้คะแนนพื้นฐาน กติกาเพิ่มเติม รวมถึงเงื่อนไขการฟาล์วหรือกติกาพิเศษ จะชี้แจงโดยกรรมการ ณ สนามแข่งขัน**
+            </div>
           </div>` : ''}
         </div>
         <div>
