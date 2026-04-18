@@ -4,12 +4,14 @@
 **/.DS_Store
 **/.git
 **/.gitignore
+
 # ─── env files ─────────────────────────────────────────────
-# ตัดทุกไฟล์ .env ออกจาก image แล้ว allowlist เฉพาะที่ต้องการ
+# ตัด .env ทั้งหมดออกจาก image — ไม่ต้อง COPY เข้าไปเลย
+# (DO App Platform และ docker-compose ใช้ process.env จาก platform/env_file ภายนอก)
+# หมายเหตุ: ไม่ใช้ negation (!.env.xxx) เพราะ kaniko builder ของ DO
+# ตีความ negate pattern ต่างจาก Docker ทั่วไป ทำให้ COPY พัง
 **/.env
 **/.env.*
-!.env.example
-!.env.production     # production defaults ต้องติดไปใน image (non-secret)
 
 # Docs / dev-only
 Document/

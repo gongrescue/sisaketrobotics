@@ -33,15 +33,20 @@ COPY --from=builder /app/backend/node_modules ./backend/node_modules
 COPY backend ./backend
 COPY frontend ./frontend
 
-# Copy production env defaults (non-secret) — loader จะหยิบตาม NODE_ENV
-# ใช้ wildcard เพื่อให้ COPY ไม่ fail ถ้าไฟล์โดน .dockerignore กรองออกไป
-COPY .env.productio[n] ./.env.production
+# หมายเหตุ: ไม่ต้อง COPY .env.production เข้า image เพราะ DO App Platform
+# inject env vars ลงใน process.env โดยตรง (ดู .do/app.yaml)
+# env loader จะ fallback มาอ่าน process.env ถ้าไม่พบไฟล์ → พอแล้วสำหรับ prod
 
 RUN chown -R appuser:appgroup /app
 USER appuser
 
-ENV NODE_ENV=production
-ENV PORT=5000
+# Non-secret defaults ที่เคยอยู่ใน .env.production — set ผ่าน ENV directive
+# (จะถูก override โดย DO App Platform ถ้า set ซ้ำใน spec)
+ENV NODE_ENV=production \
+    PORT=5000 \
+    JWT_EXPIRES_IN=24h \
+    LOG_LEVEL=info
+
 EXPOSE 5000
 
 # ตั้ง working dir เป็น backend เพราะ server.js อ้างอิง ../frontend แบบ relative
