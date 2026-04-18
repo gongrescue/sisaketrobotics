@@ -403,7 +403,7 @@ async function loadCompDetail(compId) {
                     <td style="color:${cr.isPenalty?'var(--danger)':'var(--accent)'}">
                       ${cr.isPenalty ? '-' : '+'}${cr.pointsPerUnit || cr.points}
                     </td>
-                    <td style="font-size:0.75rem;color:var(--text-muted)">${cr.description || cr.type}</td>
+                    <td style="font-size:0.75rem;color:var(--text-muted)">${cr.description || '-'}</td>
                   </tr>`).join('')}
               </tbody>
             </table>
@@ -483,17 +483,18 @@ async function loadLeaderboard() {
 
 function renderLbTabs(comps) {
   const tabs = document.getElementById('lbTabs');
-  tabs.innerHTML = comps.map(c => `
-    <button class="lb-tab ${c._id === currentLbCompId ? 'active' : ''}"
-      onclick="switchLbTab('${c._id}', this)">
-      ${getCategoryIcon(c.category)} ${c.code}
-    </button>`).join('');
+  const options = comps.map(c => `
+    <option value="${c._id}" ${c._id === currentLbCompId ? 'selected' : ''}>
+      ${c.name}
+    </option>`).join('');
+  tabs.innerHTML = `
+    <select class="form-input" style="width: 100%; max-width: 500px; margin-bottom: 1rem; font-size: 1rem;" onchange="switchLbTab(this.value)">
+      ${options}
+    </select>`;
 }
 
-async function switchLbTab(compId, btn) {
+async function switchLbTab(compId) {
   currentLbCompId = compId;
-  document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
   await loadLbForComp(compId);
 }
 
