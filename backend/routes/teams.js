@@ -99,11 +99,50 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+// PATCH /api/teams/bulk-checkin - bulk check in
+router.patch('/bulk-checkin', protect, adminOnly, async (req, res) => {
+  try {
+    const { competition } = req.body;
+    const filter = competition ? { competition } : {};
+    const result = await Team.updateMany(filter, { checkedIn: true, checkedInAt: new Date(), status: 'competing' });
+    res.json({ success: true, count: result.modifiedCount });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 
 // POST /api/teams/bulk - bulk import (admin)
 router.post('/bulk', protect, adminOnly, async (req, res) => {
   try {
     const { teams } = req.body;
+    if (!teams || !Array.isArray(teams)) return res.status(400).json({ success: false, message: 'Invalid data' });
+    
+    // Group by competition
+    const comps = [...new Set(teams.map(t => t.competition.toString()))];
+    for (let comp of comps) {
+      const compTeams = teams.filter(t => t.competition.toString() === comp);
+      
+      const existingTeams = await Team.find({ competition: comp }).select('teamNumber').lean();
+      let maxNum = 0;
+      existingTeams.forEach(t => {
+        if (t.teamNumber) {
+          const match = t.teamNumber.match(/\d+$/);
+          if (match) {
+            const num = parseInt(match[0], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+      });
+      
+      compTeams.forEach(t => {
+        if (!t.teamNumber || t.teamNumber.trim() === '') {
+          maxNum++;
+          t.teamNumber = `T${maxNum.toString().padStart(3, '0')}`;
+        }
+      });
+    }
+    
     const results = await Team.insertMany(teams, { ordered: false });
     res.status(201).json({ success: true, count: results.length, data: results });
   } catch (error) {

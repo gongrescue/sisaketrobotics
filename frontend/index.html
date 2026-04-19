@@ -161,6 +161,10 @@
         <select class="filter-select" id="teamCompFilter" onchange="loadTeams()">
           <option value="">ทุกประเภท</option>
         </select>
+        <button class="btn btn-outline btn-sm" onclick="downloadDynamicTemplate()">📥 โหลด Template</button>
+        <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="importCSV(event)">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('csvInput').click()">📥 Import CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="checkInAllTeams()">✅ เช็คอินทั้งหมด</button>
         <button class="btn btn-primary btn-sm" onclick="showTeamModal()">+ เพิ่มทีม</button>
       </div>
       <div class="table-container">
@@ -325,8 +329,12 @@
       <input type="text" class="form-input" id="teamCoach" placeholder="ชื่อโค้ช">
     </div>
     <div class="form-group">
-      <label class="form-label">สมาชิก (ชื่อ คั่นด้วยเครื่องหมาย ,)</label>
-      <input type="text" class="form-input" id="teamMembers" placeholder="ชื่อ1, ชื่อ2">
+      <label class="form-label">สมาชิกในทีม (สูงสุด 3 คน)</label>
+      <div style="display:flex; flex-direction:column; gap:0.5rem;">
+        <input type="text" class="form-input" id="teamMember1" placeholder="ชื่อคนที่ 1">
+        <input type="text" class="form-input" id="teamMember2" placeholder="ชื่อคนที่ 2">
+        <input type="text" class="form-input" id="teamMember3" placeholder="ชื่อคนที่ 3">
+      </div>
     </div>
     <div id="teamModalMsg" class="alert" style="display:none"></div>
   </div>

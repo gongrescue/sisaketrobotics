@@ -687,6 +687,7 @@ async function loadTeams() {
         <td>
           <button class="btn btn-sm btn-outline btn-icon" onclick="editTeam('${t._id}')" title="แก้ไข">✏️</button>
           ${!t.checkedIn ? `<button class="btn btn-sm btn-outline btn-icon" onclick="checkInTeam('${t._id}')" title="เช็คอิน">✅</button>` : ''}
+          <button class="btn btn-sm btn-outline btn-icon" onclick="deleteTeam('${t._id}')" title="ลบ" style="color:var(--danger)">🗑️</button>
         </td>
       </tr>`).join('');
   } catch (err) {
@@ -718,7 +719,10 @@ function showTeamModal(team = null) {
   document.getElementById('teamName').value = team?.teamName || '';
   document.getElementById('teamSchool').value = team?.schoolName || '';
   document.getElementById('teamCoach').value = team?.coachName || '';
-  document.getElementById('teamMembers').value = team?.members?.map(m => m.name).join(', ') || '';
+  const members = team?.members || [];
+  document.getElementById('teamMember1').value = members[0]?.name || '';
+  document.getElementById('teamMember2').value = members[1]?.name || '';
+  document.getElementById('teamMember3').value = members[2]?.name || '';
   if (team?.competition) {
     document.getElementById('teamComp').value = typeof team.competition === 'object' ? team.competition._id : team.competition;
   }
@@ -736,7 +740,13 @@ async function editTeam(id) {
 
 async function saveTeam() {
   const id = document.getElementById('teamId').value;
-  const members = document.getElementById('teamMembers').value.split(',').filter(s => s.trim()).map(n => ({ name: n.trim(), role: 'competitor' }));
+  const m1 = document.getElementById('teamMember1').value.trim();
+  const m2 = document.getElementById('teamMember2').value.trim();
+  const m3 = document.getElementById('teamMember3').value.trim();
+  const members = [];
+  if (m1) members.push({ name: m1, role: 'competitor' });
+  if (m2) members.push({ name: m2, role: 'competitor' });
+  if (m3) members.push({ name: m3, role: 'competitor' });
   const payload = {
     competition: document.getElementById('teamComp').value,
     teamName: document.getElementById('teamName').value.trim(),
@@ -753,12 +763,154 @@ async function saveTeam() {
     closeModal(); showToast('บันทึกทีมเรียบร้อย ✅', 'success'); loadTeams();
   } catch (err) { showAlert('teamModalMsg', err.message, 'error'); }
 }
+async function downloadDynamicTemplate() {
+  if (allCompetitions.length === 0) {
+    try {
+      const res = await apiFetch('/competitions');
+      allCompetitions = res.data;
+    } catch (err) {
+      return showToast('ไม่สามารถโหลดข้อมูลประเภทการแข่งขันได้', 'error');
+    }
+  }
+
+  let csvContent = "\uFEFF"; // UTF-8 BOM
+  csvContent += "รหัสประเภท (Code),ประเภทการแข่งขัน,ชื่อทีม,ชื่อโรงเรียน,ชื่อโค้ช,สมาชิก1,สมาชิก2,สมาชิก3\n";
+
+  if (allCompetitions.length === 0) {
+    csvContent += "NO_COMPETITION,ตัวอย่างการแข่งขัน,ทีม A,รร. ทดสอบ,ครูฝึก,นร.1,นร.2,นร.3\n";
+  } else {
+    allCompetitions.forEach(c => {
+      const safeName = c.name.replace(/"/g, '""');
+      const formattedName = safeName.includes(',') ? `"${safeName}"` : safeName;
+      csvContent += `${c.code},${formattedName},ทีม...,โรงเรียน...,โค้ช...,แบบคั่นด้วยลูกน้ำ,,,\n`;
+    });
+  }
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "template-teams.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function parseCSVRow(str) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (inQuotes) {
+      if (char === '"' && str[i+1] === '"') { current += '"'; i++; }
+      else if (char === '"') { inQuotes = false; }
+      else { current += char; }
+    } else {
+      if (char === '"') { inQuotes = true; }
+      else if (char === ',') { result.push(current.trim()); current = ''; }
+      else { current += char; }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+async function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const rows = text.split(/\r?\n|\r/).filter(r => r.trim() !== '');
+  if (rows.length < 2) return showToast('ไฟล์ CSV ว่างหรือไม่มีข้อมูล', 'error');
+
+  if (allCompetitions.length === 0) {
+    const res = await apiFetch('/competitions');
+    allCompetitions = res.data;
+  }
+
+  const teamsData = [];
+  for (let i = 1; i < rows.length; i++) {
+    // Robust CSV parsing
+    const cols = parseCSVRow(rows[i]);
+    if (cols.length < 3) continue;
+
+    const compCode = cols[0] || '';
+    // cols[1] ถูกใช้งานเป็นคอลัมน์ชื่อประเภทเพื่อให้มนุษย์อ่าน (Display Only) จะไม่ถูกนำเข้า
+    const teamName = cols[2] || '';
+    const schoolName = cols[3] || '';
+    const coachName = cols[4] || '';
+
+    const members = [];
+    if (cols[5]) members.push({ name: cols[5], role: 'competitor' });
+    if (cols[6]) members.push({ name: cols[6], role: 'competitor' });
+    if (cols[7]) members.push({ name: cols[7], role: 'competitor' });
+
+    const compMatch = allCompetitions.find(c => c.code.toLowerCase() === compCode.toLowerCase());
+    if (!compMatch) {
+      console.warn(`ไม่พบรหัสประเภทการแข่งขัน: ${compCode} ข้ามรายการนี้`);
+      continue;
+    }
+
+    if (teamName && schoolName) {
+      teamsData.push({
+        competition: compMatch._id,
+        teamName,
+        schoolName,
+        coachName,
+        members
+      });
+    }
+  }
+
+  if (teamsData.length === 0) {
+    event.target.value = '';
+    return showToast('ไม่พบข้อมูลทีมที่นำเข้าได้ อาจเพราะรหัสประเภทผิด', 'error');
+  }
+
+  try {
+    const res = await apiFetch('/teams/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ teams: teamsData })
+    });
+    showToast(`นำเข้าสำเร็จ ${res.count} ทีม ✅`, 'success');
+    loadTeams();
+  } catch (err) {
+    showToast(`นำเข้าผิดพลาด: ${err.message}`, 'error');
+  }
+  event.target.value = '';
+}
 
 async function checkInTeam(id) {
   try {
     await apiFetch(`/teams/${id}/checkin`, { method: 'PATCH' });
     showToast('เช็คอินสำเร็จ ✅', 'success'); loadTeams();
   } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function checkInAllTeams() {
+  const compFilter = document.getElementById('teamCompFilter')?.value || '';
+  if (!confirm(compFilter ? 'ยืนยันเช็คอินทีมทั้งหมดในประเภทการแข่งขันนี้?' : 'ยืนยันเช็คอิน "ทุกทีมในระบบ" ทั้งหมด?')) return;
+  try {
+    const res = await apiFetch('/teams/bulk-checkin', {
+      method: 'PATCH',
+      body: JSON.stringify({ competition: compFilter })
+    });
+    showToast(`เช็คอินทั้งหมดสำเร็จ (${res.count} ทีม) ✅`, 'success');
+    loadTeams();
+  } catch (err) {
+    showToast(`เช็คอินทั้งหมดผิดพลาด: ${err.message}`, 'error');
+  }
+}
+
+async function deleteTeam(id) {
+  if (!confirm('ยืนยันลบทีมนี้อย่างถาวร?')) return;
+  try {
+    await apiFetch(`/teams/${id}`, { method: 'DELETE' });
+    showToast('ลบทีมสำเร็จ 🗑️', 'success');
+    loadTeams();
+  } catch (err) {
+    showToast(`ลบทีมผิดพลาด: ${err.message}`, 'error');
+  }
 }
 
 // ─── SCORE ENTRY ──────────────────────────────────────────────
