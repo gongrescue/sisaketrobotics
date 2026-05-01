@@ -438,3 +438,49 @@ input[type="checkbox"] { width: auto; margin-right: 6px; accent-color: var(--pri
   .hero-stats { gap: 0.6rem; }
   .stat-num { font-size: 1.5rem; }
 }
+
+/* ═══ BRACKET ═══ */
+.bracket-toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: 1rem 1.5rem; background: var(--bg2); border-bottom: 1px solid var(--border); }
+.bracket-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.bracket-round { margin: 1.5rem; }
+.bracket-round-title { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+.badge-bo3 { font-size: 0.7rem; font-weight: 600; background: var(--primary); color: #fff; padding: 2px 8px; border-radius: 12px; }
+.bracket-matches { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.bracket-match-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.bracket-match-card.match-done { border-color: var(--success); }
+.bracket-team { font-size: 0.88rem; color: var(--text); padding: 4px 0; }
+.bracket-team.match-winner { font-weight: 700; color: var(--primary); }
+.bracket-score { font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 4px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.bracket-games { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.bracket-game { font-size: 0.72rem; background: var(--bg3, var(--bg)); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; color: var(--text-muted); }
+.btn-xs { font-size: 0.72rem; padding: 3px 8px; }
+.manual-pair-row { display: grid; grid-template-columns: 60px 1fr auto 1fr; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.pair-label { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+.modal-lg { max-width: 640px; }
+
+/* ═══ BYE ═══ */
+.bye-badge { display: inline-block; background: #dbeafe; color: #1d4ed8; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.05em; }
+.bracket-bye { border: 2px dashed #86efac !important; background: #f0fdf4; }
+.bye-team { color: #6b7280; font-style: italic; }
+.bye-selector-row { grid-template-columns: 60px auto 1fr !important; gap: 0.75rem; background: #eff6ff; border: 2px dashed #93c5fd; border-radius: 8px; padding: 0.5rem 0.75rem; margin-top: 0.5rem; }
+.bye-label { color: #1d4ed8 !important; font-weight: 700; }
+.bye-hint { font-size: 0.78rem; color: #6b7280; white-space: nowrap; }
+
+/* ═══ BRACKET SCORE ENTRY ═══ */
+.bsc-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
+.bsc-header { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.bsc-teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: start; }
+.bsc-team-col { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.bsc-team-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 2px; }
+.bsc-vs { display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: var(--text-muted); padding-top: 2.5rem; }
+@media (max-width: 600px) {
+  .bsc-teams { grid-template-columns: 1fr; }
+  .bsc-vs { padding: 0.5rem 0; }
+}
+
+/* ═══ BRACKET MATCH TABLE (จัดการคะแนน) ═══ */
+.score-section-title { font-weight: 700; font-size: 0.9rem; padding: 0.5rem 0.75rem; background: var(--bg2); border-radius: 8px 8px 0 0; border: 1px solid var(--border); border-bottom: none; color: var(--text); display: flex; align-items: center; gap: 0.5rem; }
+.badge-status { display: inline-block; font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.badge-done     { background: #dcfce7; color: #166534; }
+.badge-progress { background: #fef9c3; color: #92400e; }
+.badge-pending  { background: var(--bg2); color: var(--text-muted); border: 1px solid var(--border); }

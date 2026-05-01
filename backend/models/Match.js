@@ -28,6 +28,18 @@ const matchSchema = new mongoose.Schema({
   winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
   isDraw: { type: Boolean, default: false },
 
+  // Bracket system fields
+  bracketRound: { type: Number, default: 1 },
+  isBestOf3: { type: Boolean, default: false },
+  games: [{
+    gameNumber: Number,
+    team1Score: Number,
+    team2Score: Number,
+    winnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' }
+  }],
+  team1Wins: { type: Number, default: 0 },
+  team2Wins: { type: Number, default: 0 },
+
   status: {
     type: String,
     enum: ['scheduled', 'in_progress', 'completed', 'cancelled'],

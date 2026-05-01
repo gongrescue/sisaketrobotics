@@ -162,7 +162,6 @@ function updateNavForAuth(loggedIn) {
   document.getElementById('adminNavLink').style.display  = admin    ? '' : 'none';
   // "บันทึกคะแนน" quick link appears for any non-admin logged-in user
   document.getElementById('judgeNavLink').style.display  = nonAdmin ? '' : 'none';
-
   // Public nav links (หน้าหลัก / ประเภทการแข่งขัน / ตารางคะแนน):
   //   - guest & admin: visible
   //   - judge: visible (can browse public pages)
@@ -183,6 +182,8 @@ function updateNavForAuth(loggedIn) {
     if (scoreTableTabBtn) scoreTableTabBtn.style.display = admin ? '' : 'none';
     if (matchesTabBtn)    matchesTabBtn.style.display    = admin ? '' : 'none';
     if (usersTabBtn)      usersTabBtn.style.display      = admin ? '' : 'none';
+    const bracketTabBtn = document.getElementById('tabBtn-bracket');
+    if (bracketTabBtn) bracketTabBtn.style.display = (admin || isJudge()) ? '' : 'none';
 
     const badge = document.getElementById('userBadge');
     if (badge) badge.textContent = `👤 ${currentUser.name} (${getRoleLabel(currentUser.role)})`;
@@ -502,11 +503,11 @@ async function loadLbForComp(compId) {
   const content = document.getElementById('lbContent');
   content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
   try {
-    const [compRes, rankRes] = await Promise.all([
-      apiFetch(`/competitions/${compId}`),
-      apiFetch(`/rankings/${compId}`)
-    ]);
+    const compRes = await apiFetch(`/competitions/${compId}`);
     const comp = compRes.data;
+    const rankRes = isTourComp(comp)
+      ? await apiFetch(`/brackets/${compId}/rankings`)
+      : await apiFetch(`/rankings/${compId}`);
     const rankData = rankRes;
 
     const icon = getCategoryIcon(comp.category);
@@ -530,6 +531,42 @@ async function loadLbForComp(compId) {
 function renderLbTable(rankData, comp) {
   if (!rankData?.data?.length) {
     return '<div class="empty-state"><div class="empty-state-icon">🏆</div><p>ยังไม่มีข้อมูลคะแนน</p><p style="font-size:0.8rem;color:var(--text-dim)">กรรมการสามารถเริ่มบันทึกคะแนนได้ในแผงจัดการ</p></div>';
+  }
+  if (rankData.type === 'BRACKET') {
+    const stageLabel = s => STAGE_LABELS[s] || s || '–';
+    return `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th>
+            <th>รอบล่าสุด</th><th>คะแนน</th><th>สถานะ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rankData.data.map((r, i) => {
+            const rank = !r.hasPlayed ? '–' : i < 3 ? ['🥇','🥈','🥉'][i] : i + 1;
+            const rankClass = r.hasPlayed && i < 3 ? `rank-${i+1}` : 'rank-n';
+            let statusHtml;
+            if (!r.hasPlayed) {
+              statusHtml = '<span style="color:var(--text-muted)">รอแข่งขัน</span>';
+            } else if (r.qualified) {
+              statusHtml = '<span style="color:var(--success);font-weight:700">✅ ผ่านเข้ารอบ</span>';
+            } else {
+              statusHtml = '<span style="color:var(--danger)">❌ ตกรอบ</span>';
+            }
+            return `
+              <tr>
+                <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+                <td><strong>${r.team?.teamName || '-'}</strong>
+                  <div style="font-size:0.75rem;color:var(--text-dim)">${r.team?.teamNumber || ''}</div></td>
+                <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
+                <td style="font-size:0.82rem;color:var(--text-muted)">${r.hasPlayed ? stageLabel(r.latestStage) : '–'}</td>
+                <td style="font-weight:700;font-size:1.1rem;color:var(--accent)">${r.hasPlayed ? r.latestScore : '–'}</td>
+                <td>${statusHtml}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
   }
   if (rankData.type === 'BATTLE') {
     const stages = {};
@@ -615,9 +652,11 @@ function loadAdmin() {
 // Tabs that admin-only users can access. Non-admin users are locked to 'scores'.
 const ADMIN_ONLY_TABS = ['teams', 'matches', 'users', 'scoreTable'];
 
+const JUDGE_ALLOWED_TABS = ['scores', 'bracket'];
+
 function switchAdminTabDirect(tab) {
-  // Non-admin users cannot switch away from the scores tab
-  if (isNonAdmin() && tab !== 'scores') {
+  // Non-admin users: only scores + bracket allowed
+  if (isNonAdmin() && !JUDGE_ALLOWED_TABS.includes(tab)) {
     tab = 'scores';
   }
   // Extra guard: admin-only tabs require admin role
@@ -639,11 +678,11 @@ function switchAdminTabDirect(tab) {
   else if (tab === 'scoreTable') loadScoresTableInit();
   else if (tab === 'matches') loadMatchFilters();
   else if (tab === 'users') loadUsers();
+  else if (tab === 'bracket') loadBracketTab();
 }
 
 function switchAdminTab(tab) {
-  // Block non-admin from any tab other than scores; block non-admins from admin-only tabs
-  if (isNonAdmin() && tab !== 'scores') {
+  if (isNonAdmin() && !JUDGE_ALLOWED_TABS.includes(tab)) {
     showToast('คุณไม่มีสิทธิ์เข้าถึงส่วนนี้', 'error');
     return;
   }
@@ -1043,6 +1082,10 @@ function resetScoreForm() {
   showToast('ล้างฟอร์มแล้ว', 'info');
 }
 
+function isTourComp(comp) {
+  return comp?.name?.includes('เที่ยวเมืองศรีสะเกษ');
+}
+
 async function onCompetitionChange() {
   const compId = document.getElementById('scoreCompetition').value;
   const teamSelect = document.getElementById('scoreTeam');
@@ -1054,10 +1097,24 @@ async function onCompetitionChange() {
 
   teamSelect.innerHTML = '<option value="">เลือกทีม...</option>';
   fieldsDiv.innerHTML = '';
-  if (!compId) return;
+  if (!compId) {
+    document.getElementById('normalScoreFields').style.display = '';
+    document.getElementById('bracketScoreSection').style.display = 'none';
+    return;
+  }
 
   const comp = allCompetitions.find(c => c._id === compId);
   if (!comp) return;
+
+  // Tour competitions use bracket score entry
+  if (isTourComp(comp)) {
+    document.getElementById('normalScoreFields').style.display = 'none';
+    document.getElementById('bracketScoreSection').style.display = '';
+    renderBracketScoreSection(compId, comp);
+    return;
+  }
+  document.getElementById('normalScoreFields').style.display = '';
+  document.getElementById('bracketScoreSection').style.display = 'none';
 
   // Show/hide fields by scoringType
   //   - เวลาที่ใช้ (วินาที): แสดงทุกประเภท (ใช้เป็น tiebreaker / ข้อมูลอ้างอิง)
@@ -1360,6 +1417,17 @@ async function loadScoresTable() {
     return;
   }
 
+  // ── ตรวจว่าเป็น tour comp หรือไม่ ──
+  const comp = allCompetitions.find(c => c._id === compId);
+  const roundFilter = document.getElementById('scoreTableRoundFilter');
+  if (isTourComp(comp)) {
+    if (roundFilter) roundFilter.style.display = 'none';
+    await loadBracketMatchTable(compId, comp);
+    return;
+  }
+  // comp ปกติ → แสดง round filter
+  if (roundFilter) roundFilter.style.display = '';
+
   container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>กำลังโหลดคะแนน...</p></div>';
 
   try {
@@ -1463,7 +1531,146 @@ async function loadScoresTable() {
   }
 }
 
-// เก็บค่าที่แก้ในแถว แล้ว PUT ไปที่ backend
+// ─── BRACKET MATCH TABLE (สำหรับ tour comp ใน หน้าจัดการคะแนน) ───────────────
+
+let _bmtCache = [];  // cache ของ match data สำหรับ openBracketMatchEdit
+
+async function loadBracketMatchTable(compId, comp) {
+  const container = document.getElementById('scoreTableContainer');
+  container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>กำลังโหลด...</p></div>';
+
+  // ซ่อน round filter ที่ไม่เกี่ยว (ใช้แค่ team filter)
+  const roundFilter = document.getElementById('scoreTableRoundFilter');
+  if (roundFilter) roundFilter.style.display = 'none';
+
+  try {
+    const res = await apiFetch(`/brackets/${compId}`);
+    const groups = res.data || [];
+    _bmtCache = groups.flatMap(g => g.matches);
+
+    if (!groups.length || !_bmtCache.length) {
+      container.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📭</div><p class="text-muted">ยังไม่มีสายการแข่งขัน</p></div>';
+      return;
+    }
+
+    // กรอง by team ถ้ามีการเลือก
+    const teamId = document.getElementById('scoreTableTeamFilter')?.value || '';
+
+    const rows = groups.map(group => {
+      const stageBase = STAGE_LABELS[group.stage] || group.stage;
+      const roundLabel = (group.stage === 'preliminary' && group.bracketRound > 1)
+        ? `${stageBase} (รอบที่ ${group.bracketRound})` : stageBase;
+
+      const matchRows = group.matches
+        .filter(m => !teamId || (m.team1?._id === teamId || m.team2?._id === teamId))
+        .map(m => {
+          const isBye = m.notes === 'BYE' || !m.team2;
+          const t1name = m.team1 ? `${m.team1.teamNumber} ${m.team1.teamName}` : '-';
+          const t2name = isBye ? 'BYE' : (m.team2 ? `${m.team2.teamNumber} ${m.team2.teamName}` : '-');
+          const t1school = m.team1?.schoolName || '';
+          const t2school = !isBye ? (m.team2?.schoolName || '') : '';
+
+          let scoreHtml = '';
+          if (isBye) {
+            scoreHtml = '<span style="color:#16a34a;font-size:0.8rem">ผ่านอัตโนมัติ</span>';
+          } else if (m.status === 'completed') {
+            const s1 = m.isBestOf3 ? m.team1Wins : m.team1Score;
+            const s2 = m.isBestOf3 ? m.team2Wins : m.team2Score;
+            const wid = m.winner?._id || m.winner?.toString();
+            const t1id = m.team1?._id || m.team1?.toString();
+            const winnerName = wid === t1id ? t1name : t2name;
+            scoreHtml = `
+              <div style="font-weight:700;font-size:1rem">${s1} : ${s2}</div>
+              <div style="font-size:0.72rem;color:var(--text-dim)">🏆 ${winnerName}</div>
+              ${m.isBestOf3 && m.games?.length ? `<div style="font-size:0.7rem;color:var(--text-muted)">
+                ${m.games.map(g => `G${g.gameNumber}: ${g.team1Score}–${g.team2Score}`).join(' | ')}
+              </div>` : ''}`;
+          } else if (m.status === 'in_progress') {
+            scoreHtml = `<span style="color:var(--accent)">${m.team1Wins??0} : ${m.team2Wins??0} (กำลังแข่ง)</span>`;
+          } else {
+            scoreHtml = '<span class="text-muted">รอแข่ง</span>';
+          }
+
+          const canEdit = !isBye;
+          const editBtn = canEdit
+            ? `<button class="btn btn-sm btn-outline btn-icon" onclick="openBracketMatchEdit('${m._id}','${compId}')" title="แก้ไข">✏️</button>`
+            : '';
+
+          return `
+            <tr>
+              <td>
+                <div style="font-weight:600;font-size:0.85rem">${t1name}</div>
+                <div style="font-size:0.72rem;color:var(--text-dim)">${t1school}</div>
+              </td>
+              <td style="text-align:center;padding:0.25rem">
+                ${scoreHtml}
+              </td>
+              <td>
+                <div style="font-weight:600;font-size:0.85rem">${t2name}</div>
+                <div style="font-size:0.72rem;color:var(--text-dim)">${t2school}</div>
+              </td>
+              <td style="text-align:center">
+                <span class="badge-status badge-${m.status === 'completed' ? 'done' : m.status === 'in_progress' ? 'progress' : 'pending'}">
+                  ${m.status === 'completed' ? '✅ จบ' : m.status === 'in_progress' ? '🔄 กำลังแข่ง' : '⏳ รอ'}
+                </span>
+              </td>
+              <td style="text-align:center">${editBtn}</td>
+            </tr>`;
+        }).join('');
+
+      if (!matchRows.trim()) return '';
+      return `
+        <div style="margin-bottom:1.5rem">
+          <div class="score-section-title">${roundLabel}${group.matches[0]?.isBestOf3 ? ' <span class="badge-bo3" style="font-size:0.7rem">Best of 3</span>' : ''}</div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ทีม 1</th>
+                <th style="width:160px;text-align:center">คะแนน</th>
+                <th>ทีม 2</th>
+                <th style="width:90px;text-align:center">สถานะ</th>
+                <th style="width:50px"></th>
+              </tr>
+            </thead>
+            <tbody>${matchRows}</tbody>
+          </table>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = rows || '<div class="empty-state" style="padding:2rem"><p class="text-muted">ไม่พบคู่การแข่งขันในเงื่อนไขที่เลือก</p></div>';
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-error">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`;
+  }
+}
+
+async function openBracketMatchEdit(matchId, compId) {
+  const match = _bmtCache.find(m => m._id === matchId);
+  if (!match) return showToast('ไม่พบข้อมูล match', 'error');
+  const comp = allCompetitions.find(c => c._id === compId);
+  if (!comp) return;
+
+  // สร้าง prefill จาก team1Details / team2Details ที่บันทึกไว้
+  const prefill = {
+    t1: match.team1Details && Object.keys(match.team1Details).length ? match.team1Details : null,
+    t2: match.team2Details && Object.keys(match.team2Details).length ? match.team2Details : null
+  };
+
+  const modalBody = document.getElementById('bmEditModalBody');
+  modalBody.innerHTML = renderBracketScoreMatchCard(match, comp, compId, prefill, true);
+
+  // แสดง modal
+  document.getElementById('bmEditModal').classList.add('active');
+  document.getElementById('modalOverlay').classList.add('active');
+
+  // คำนวณ preview หลัง DOM พร้อม
+  setTimeout(() => calcBracketPreview(matchId, compId), 50);
+
+  // เมื่อ submit เสร็จ ให้ปิด modal และ reload ตาราง
+  const originalSubmit = window._bmEditCompId;
+  window._bmEditCompId = compId;
+}
+
+// ─── เก็บค่าที่แก้ในแถว แล้ว PUT ไปที่ backend
 async function saveScoreRow(scoreId) {
   if (!isAdmin()) { showToast('เฉพาะผู้ดูแลระบบเท่านั้น', 'error'); return; }
   const row = document.querySelector(`tr[data-score-id="${scoreId}"]`);
@@ -1842,6 +2049,710 @@ function showModal(id) {
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('active');
   document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+}
+
+// ─── BRACKET ──────────────────────────────────────────────────
+
+const STAGE_LABELS = {
+  preliminary:   'รอบคัดเลือก',
+  round16:       'รอบ 16 ทีม',
+  quarterfinal:  'รอบ 8 ทีม',
+  semifinal:     'รอบรองชนะเลิศ',
+  final:         'รอบชิงชนะเลิศ',
+  third_place:   'ชิงอันดับ 3'
+};
+
+let bracketCurrentCompId = null;
+let bracketCurrentRound = 1;
+let bracketAvailableTeams = [];
+let _bracketRoundsData = [];
+
+async function loadBracketTab() {
+  const sel = document.getElementById('bracketCompFilter');
+  try {
+    const res = await apiFetch('/competitions');
+    const tourComps = res.data.filter(c => c.name.includes('เที่ยวเมืองศรีสะเกษ'));
+    sel.innerHTML = '<option value="">-- เลือกประเภทการแข่งขัน --</option>';
+    tourComps.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c._id;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+  } catch (err) {
+    showToast('โหลดรายการแข่งขันไม่ได้: ' + err.message, 'error');
+  }
+}
+
+async function loadBracket() {
+  const compId = document.getElementById('bracketCompFilter').value;
+  if (!compId) {
+    document.getElementById('bracketContent').innerHTML = '<p class="text-muted text-center p-4">เลือกประเภทการแข่งขันเพื่อดูสายการแข่งขัน</p>';
+    document.getElementById('bracketActions').style.display = 'none';
+    return;
+  }
+  bracketCurrentCompId = compId;
+  document.getElementById('bracketActions').style.display = isAdmin() || isJudge() ? 'flex' : 'none';
+
+  const content = document.getElementById('bracketContent');
+  content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+  try {
+    const res = await apiFetch(`/brackets/${compId}`);
+    renderBracket(res.data);
+  } catch (err) {
+    content.innerHTML = `<p class="text-muted text-center p-4">เกิดข้อผิดพลาด: ${err.message}</p>`;
+  }
+}
+
+function renderBracket(rounds) {
+  _bracketRoundsData = rounds;
+  const content = document.getElementById('bracketContent');
+  if (!rounds.length) {
+    content.innerHTML = '<p class="text-muted text-center p-4">ยังไม่มีสายการแข่งขัน กด "สุ่มจับสาย" หรือ "จับสายด้วยตนเอง" เพื่อเริ่มต้น</p>';
+    return;
+  }
+
+  // หาสูงสุดของ bracketRound ที่มีอยู่
+  bracketCurrentRound = Math.max(...rounds.map(r => r.bracketRound));
+
+  content.innerHTML = rounds.map(group => {
+    // แสดง "(รอบที่ N)" เฉพาะรอบคัดเลือกที่มีหลายรอบเท่านั้น
+    const stageBase = STAGE_LABELS[group.stage] || group.stage;
+    const label = (group.stage === 'preliminary' && group.bracketRound > 1)
+      ? `${stageBase} (รอบที่ ${group.bracketRound})`
+      : stageBase;
+    const isBo3 = group.matches[0]?.isBestOf3;
+    return `
+      <div class="bracket-round">
+        <div class="bracket-round-title">
+          ${label}
+          ${isBo3 ? '<span class="badge-bo3">Best of 3</span>' : ''}
+        </div>
+        <div class="bracket-matches">
+          ${group.matches.map(m => renderBracketMatchCard(m)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderBracketMatchCard(m) {
+  const isBye = m.notes === 'BYE' || !m.team2;
+  const t1 = m.team1 ? `${m.team1.teamNumber} ${m.team1.teamName}` : 'รอการจับสาย';
+  const t2 = isBye ? '<span class="bye-badge">BYE</span>' : (m.team2 ? `${m.team2.teamNumber} ${m.team2.teamName}` : 'รอการจับสาย');
+  const w1 = m.winner && m.team1 && (m.winner._id === m.team1._id || m.winner.toString() === m.team1._id?.toString());
+  const w2 = !isBye && m.winner && m.team2 && (m.winner._id === m.team2._id || m.winner.toString() === m.team2._id?.toString());
+  let gamesHtml = '';
+  if (m.isBestOf3 && m.games && m.games.length) {
+    gamesHtml = `<div class="bracket-games">${m.games.map(g =>
+      `<span class="bracket-game">G${g.gameNumber}: ${g.team1Score ?? '-'} – ${g.team2Score ?? '-'}</span>`
+    ).join('')}</div>`;
+  }
+
+  const scoreDisplay = isBye
+    ? '<span style="color:#16a34a;font-weight:600">ผ่านอัตโนมัติ</span>'
+    : m.status === 'completed'
+      ? (m.isBestOf3 ? `${m.team1Wins} – ${m.team2Wins} ชนะ` : `${m.team1Score} – ${m.team2Score}`)
+      : m.status === 'in_progress' ? `${m.team1Wins ?? 0} – ${m.team2Wins ?? 0} (กำลังแข่ง)` : 'รอแข่ง';
+
+  return `
+    <div class="bracket-match-card ${m.status === 'completed' ? 'match-done' : ''} ${isBye ? 'bracket-bye' : ''}">
+      <div class="bracket-team ${w1 ? 'match-winner' : ''}">${t1}</div>
+      <div class="bracket-score">${scoreDisplay}</div>
+      <div class="bracket-team bye-team">${t2}</div>
+      ${gamesHtml}
+    </div>`;
+}
+
+async function generateBracket(mode) {
+  if (!bracketCurrentCompId) return showToast('กรุณาเลือกประเภทการแข่งขันก่อน', 'error');
+  if (!confirm(`ยืนยันการ${mode === 'random' ? 'สุ่ม' : ''}จับสาย? match ที่มีอยู่ในรอบปัจจุบันจะถูกลบและสร้างใหม่`)) return;
+  try {
+    await apiFetch(`/brackets/${bracketCurrentCompId}/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ mode, bracketRound: 1 })
+    });
+    showToast('จับสายเรียบร้อย', 'success');
+    loadBracket();
+  } catch (err) {
+    showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+function advanceBracket() {
+  if (!bracketCurrentCompId) return showToast('กรุณาเลือกประเภทการแข่งขันก่อน', 'error');
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('advanceChoiceModal').classList.add('active');
+}
+
+function showCancelRoundModal() {
+  if (!bracketCurrentCompId) return showToast('กรุณาเลือกประเภทการแข่งขันก่อน', 'error');
+  if (!_bracketRoundsData || !_bracketRoundsData.length) {
+    return showToast('ยังไม่มีการจับสายในรายการนี้', 'error');
+  }
+
+  // สร้าง options จากรอบที่มีอยู่
+  const sel = document.getElementById('cancelRoundSelect');
+  sel.innerHTML = _bracketRoundsData.map(group => {
+    const stageBase = STAGE_LABELS[group.stage] || group.stage;
+    const label = (group.stage === 'preliminary' && group.bracketRound > 1)
+      ? `${stageBase} (รอบที่ ${group.bracketRound})`
+      : stageBase;
+    const completedCount = group.matches.filter(m => m.status === 'completed').length;
+    const total = group.matches.length;
+    return `<option value="${group.bracketRound}">${label} — ${total} คู่ (บันทึกแล้ว ${completedCount})</option>`;
+  }).join('');
+
+  document.getElementById('cancelRoundMsg').style.display = 'none';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('cancelRoundModal').classList.add('active');
+}
+
+async function doDeleteBracketRound() {
+  const roundVal = document.getElementById('cancelRoundSelect').value;
+  if (!roundVal) return;
+
+  // หาชื่อรอบเพื่อแสดงใน confirm
+  const group = _bracketRoundsData.find(g => g.bracketRound == roundVal);
+  const stageBase = STAGE_LABELS[group?.stage] || group?.stage || `รอบที่ ${roundVal}`;
+  const label = (group?.stage === 'preliminary' && group?.bracketRound > 1)
+    ? `${stageBase} (รอบที่ ${roundVal})` : stageBase;
+
+  if (!confirm(`ยืนยันลบการจับคู่ทั้งหมดของ "${label}"?\nข้อมูลคะแนนที่บันทึกไว้จะหายทั้งหมด`)) return;
+
+  try {
+    const res = await apiFetch(`/brackets/${bracketCurrentCompId}/round/${roundVal}`, {
+      method: 'DELETE'
+    });
+    showToast(res.message || 'ยกเลิกจับคู่เรียบร้อย', 'success');
+    closeModal();
+    loadBracket();
+  } catch (err) {
+    const msg = document.getElementById('cancelRoundMsg');
+    msg.textContent = err.message;
+    msg.style.display = 'block';
+  }
+}
+
+async function doAdvanceBracketRandom() {
+  closeModal();
+  try {
+    const res = await apiFetch(`/brackets/${bracketCurrentCompId}/advance`, {
+      method: 'POST',
+      body: JSON.stringify({ bracketRound: bracketCurrentRound })
+    });
+    showToast(res.message || 'สร้างรอบถัดไปเรียบร้อย', 'success');
+    loadBracket();
+  } catch (err) {
+    showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+function doAdvanceBracketManual() {
+  closeModal();
+  // ดึงผู้ชนะจากรอบปัจจุบัน
+  const currentGroups = _bracketRoundsData.filter(g => g.bracketRound === bracketCurrentRound);
+  const winners = [];
+  currentGroups.forEach(g => {
+    g.matches.forEach(m => {
+      if (m.status !== 'completed' || !m.winner) return;
+      const winnerId = m.winner._id || m.winner;
+      const winnerTeam =
+        (m.team1?._id?.toString() || m.team1?.toString()) === winnerId?.toString()
+          ? m.team1 : m.team2;
+      if (winnerTeam) winners.push(winnerTeam);
+    });
+  });
+  if (winners.length < 2) return showToast('ต้องมีผู้ชนะอย่างน้อย 2 ทีม กรุณาบันทึกผลให้ครบก่อน', 'error');
+  showManualPairModal(winners, bracketCurrentRound + 1);
+}
+
+function showBracketMatchModal(matchId, isBestOf3) {
+  document.getElementById('bracketMatchId').value = matchId;
+  document.getElementById('bracketMatchIsBo3').value = isBestOf3 ? '1' : '0';
+  const title = isBestOf3 ? 'บันทึกผลเกม (Best of 3)' : 'บันทึกผลการแข่งขัน';
+  document.getElementById('bracketMatchModalTitle').textContent = title;
+
+  const form = document.getElementById('bracketMatchForm');
+  if (isBestOf3) {
+    form.innerHTML = `
+      <p class="text-muted" style="margin-bottom:1rem">บันทึกทีละเกม (ชนะ 2 เกมก่อนชนะ match)</p>
+      <div class="form-group">
+        <label class="form-label">เกมที่</label>
+        <select class="form-input" id="boGameNumber">
+          <option value="1">เกม 1</option>
+          <option value="2">เกม 2</option>
+          <option value="3">เกม 3</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="form-group">
+          <label class="form-label">คะแนน ทีม 1</label>
+          <input type="number" class="form-input" id="boTeam1Score" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">คะแนน ทีม 2</label>
+          <input type="number" class="form-input" id="boTeam2Score" min="0" value="0">
+        </div>
+      </div>`;
+  } else {
+    form.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="form-group">
+          <label class="form-label">คะแนน ทีม 1</label>
+          <input type="number" class="form-input" id="prelTeam1Score" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">คะแนน ทีม 2</label>
+          <input type="number" class="form-input" id="prelTeam2Score" min="0" value="0">
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('bracketMatchMsg').style.display = 'none';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('bracketMatchModal').classList.add('active');
+}
+
+async function saveBracketResult() {
+  const matchId = document.getElementById('bracketMatchId').value;
+  const isBo3 = document.getElementById('bracketMatchIsBo3').value === '1';
+  const btn = document.getElementById('bracketMatchSaveBtn');
+  btn.disabled = true;
+  try {
+    if (isBo3) {
+      const gameNumber = parseInt(document.getElementById('boGameNumber').value);
+      const team1Score = parseFloat(document.getElementById('boTeam1Score').value) || 0;
+      const team2Score = parseFloat(document.getElementById('boTeam2Score').value) || 0;
+      await apiFetch(`/brackets/${bracketCurrentCompId}/matches/${matchId}/game`, {
+        method: 'POST',
+        body: JSON.stringify({ gameNumber, team1Score, team2Score })
+      });
+    } else {
+      const team1Score = parseFloat(document.getElementById('prelTeam1Score').value) || 0;
+      const team2Score = parseFloat(document.getElementById('prelTeam2Score').value) || 0;
+      await apiFetch(`/brackets/${bracketCurrentCompId}/matches/${matchId}/result`, {
+        method: 'POST',
+        body: JSON.stringify({ team1Score, team2Score })
+      });
+    }
+    showToast('บันทึกผลเรียบร้อย', 'success');
+    closeModal();
+    loadBracket();
+  } catch (err) {
+    const msg = document.getElementById('bracketMatchMsg');
+    msg.textContent = err.message;
+    msg.className = 'alert alert-error';
+    msg.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+let _manualPairBracketRound = 1;
+
+async function showManualPairModal(teamsOverride = null, bracketRound = 1) {
+  if (!bracketCurrentCompId) return showToast('กรุณาเลือกประเภทการแข่งขันก่อน', 'error');
+  _manualPairBracketRound = bracketRound;
+  try {
+    if (teamsOverride) {
+      bracketAvailableTeams = teamsOverride;
+    } else {
+      const res = await apiFetch(`/teams?competition=${bracketCurrentCompId}`);
+      bracketAvailableTeams = res.data || [];
+    }
+    if (bracketAvailableTeams.length < 2) return showToast('ทีมไม่เพียงพอสำหรับการจับสาย', 'error');
+
+    const isOdd = bracketAvailableTeams.length % 2 !== 0;
+    const pairCount = Math.floor(bracketAvailableTeams.length / 2);
+    const opts = bracketAvailableTeams.map(t =>
+      `<option value="${t._id}">${t.teamNumber} – ${t.teamName}</option>`
+    ).join('');
+
+    let rows = '';
+    for (let i = 0; i < pairCount; i++) {
+      rows += `
+        <div class="manual-pair-row">
+          <span class="pair-label">คู่ที่ ${i + 1}</span>
+          <select class="form-input" id="manualTeam1_${i}">${opts}</select>
+          <span>VS</span>
+          <select class="form-input" id="manualTeam2_${i}">${opts}</select>
+        </div>`;
+    }
+
+    // ถ้าทีมเป็นจำนวนคี่ แสดง BYE selector
+    let byeRow = '';
+    if (isOdd) {
+      byeRow = `
+        <div class="manual-pair-row bye-selector-row">
+          <span class="pair-label bye-label">🎯 BYE</span>
+          <span class="bye-hint">ทีมที่ผ่านเข้ารอบอัตโนมัติ (ไม่ต้องแข่ง)</span>
+          <select class="form-input" id="manualByeTeam">${opts}</select>
+        </div>`;
+    }
+
+    document.getElementById('manualPairForm').innerHTML = rows + byeRow;
+    document.getElementById('manualPairMsg').style.display = 'none';
+    document.getElementById('modalOverlay').classList.add('active');
+    document.getElementById('manualPairModal').classList.add('active');
+  } catch (err) {
+    showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+async function saveManualPairs() {
+  const isOdd = bracketAvailableTeams.length % 2 !== 0;
+  const pairCount = Math.floor(bracketAvailableTeams.length / 2);
+  const pairs = [];
+  for (let i = 0; i < pairCount; i++) {
+    const t1 = document.getElementById(`manualTeam1_${i}`)?.value;
+    const t2 = document.getElementById(`manualTeam2_${i}`)?.value;
+    if (!t1 || !t2 || t1 === t2) {
+      const msg = document.getElementById('manualPairMsg');
+      msg.textContent = `คู่ที่ ${i + 1}: กรุณาเลือกทีมที่แตกต่างกัน`;
+      msg.className = 'alert alert-error';
+      msg.style.display = 'block';
+      return;
+    }
+    pairs.push({ team1Id: t1, team2Id: t2 });
+  }
+  let byeTeamId = null;
+  if (isOdd) {
+    byeTeamId = document.getElementById('manualByeTeam')?.value;
+    if (!byeTeamId) {
+      const msg = document.getElementById('manualPairMsg');
+      msg.textContent = 'กรุณาเลือกทีมที่จะได้ BYE';
+      msg.className = 'alert alert-error';
+      msg.style.display = 'block';
+      return;
+    }
+  }
+  try {
+    const body = { mode: 'manual', bracketRound: _manualPairBracketRound, pairs };
+    if (byeTeamId) body.byeTeamId = byeTeamId;
+    await apiFetch(`/brackets/${bracketCurrentCompId}/generate`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    showToast('จับสายด้วยตนเองเรียบร้อย', 'success');
+    closeModal();
+    loadBracket();
+  } catch (err) {
+    const msg = document.getElementById('manualPairMsg');
+    msg.textContent = err.message;
+    msg.className = 'alert alert-error';
+    msg.style.display = 'block';
+  }
+}
+
+// ─── BRACKET SCORE ENTRY ──────────────────────────────────────
+
+let _bsData = [];   // { roundKey, label, matches[] }
+let _bsComp = null;
+let _bsCompId = null;
+
+async function renderBracketScoreSection(compId, comp) {
+  _bsCompId = compId;
+  _bsComp = comp;
+  const section = document.getElementById('bracketScoreSection');
+  section.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+  try {
+    const res = await apiFetch(`/brackets/${compId}`);
+
+    // Build round options (all rounds, pending matches only in each)
+    _bsData = res.data.map(group => {
+      const stageBase = STAGE_LABELS[group.stage] || group.stage;
+      const roundLabel = (group.stage === 'preliminary' && group.bracketRound > 1)
+        ? `${stageBase} (รอบที่ ${group.bracketRound})`
+        : stageBase;
+      return {
+        roundKey: `${group.bracketRound}_${group.stage}`,
+        label: roundLabel,
+        isBo3: group.matches[0]?.isBestOf3 || false,
+        matches: group.matches
+      };
+    });
+
+    if (!_bsData.length) {
+      section.innerHTML = `
+        <div class="empty-state" style="padding:2rem">
+          <div class="empty-state-icon">🏅</div>
+          <p>ยังไม่มีสายการแข่งขัน</p>
+          <small class="text-muted">กรุณาจับสายที่แท็บ "จับสาย" ก่อน</small>
+        </div>`;
+      return;
+    }
+
+    const roundOpts = _bsData.map(g =>
+      `<option value="${g.roundKey}">${g.label}${g.isBo3 ? ' (Best of 3)' : ''}</option>`
+    ).join('');
+
+    section.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">รอบการแข่งขัน</label>
+        <select class="form-input" id="bsRoundSelect" onchange="onBracketRoundSelect()">
+          <option value="">-- เลือกรอบ --</option>
+          ${roundOpts}
+        </select>
+      </div>
+      <div class="form-group" id="bsMatchGroup" style="display:none">
+        <label class="form-label">คู่การแข่งขัน</label>
+        <select class="form-input" id="bsMatchSelect" onchange="onBracketMatchSelect()">
+          <option value="">-- เลือกคู่ --</option>
+        </select>
+      </div>
+      <div id="bsScoreForm"></div>`;
+  } catch (err) {
+    section.innerHTML = `<p class="text-muted text-center">เกิดข้อผิดพลาด: ${err.message}</p>`;
+  }
+}
+
+function onBracketRoundSelect() {
+  const roundKey = document.getElementById('bsRoundSelect').value;
+  const matchGroup = document.getElementById('bsMatchGroup');
+  const scoreForm = document.getElementById('bsScoreForm');
+  scoreForm.innerHTML = '';
+
+  if (!roundKey) { matchGroup.style.display = 'none'; return; }
+
+  const group = _bsData.find(g => g.roundKey === roundKey);
+  if (!group) return;
+
+  const matchSel = document.getElementById('bsMatchSelect');
+  // กรอง BYE matches ออก — ไม่ต้องบันทึกคะแนน
+  const scorableMatches = group.matches.filter(m => m.notes !== 'BYE' && m.team2);
+  matchSel.innerHTML = '<option value="">-- เลือกคู่ --</option>' +
+    scorableMatches.map(m => {
+      const t1 = m.team1 ? `${m.team1.teamNumber} ${m.team1.teamName}` : 'TBD';
+      const t2 = m.team2 ? `${m.team2.teamNumber} ${m.team2.teamName}` : 'TBD';
+      const done = m.status === 'completed' ? ' ✅' : m.status === 'in_progress' ? ' 🔄' : '';
+      return `<option value="${m._id}">${t1} vs ${t2}${done}</option>`;
+    }).join('');
+
+  matchGroup.style.display = '';
+}
+
+function onBracketMatchSelect() {
+  const roundKey = document.getElementById('bsRoundSelect').value;
+  const matchId = document.getElementById('bsMatchSelect').value;
+  const scoreForm = document.getElementById('bsScoreForm');
+  scoreForm.innerHTML = '';
+  if (!matchId || !roundKey) return;
+
+  const group = _bsData.find(g => g.roundKey === roundKey);
+  const match = group?.matches.find(m => m._id === matchId);
+  if (!match || !_bsComp) return;
+
+  if (match.status === 'completed') {
+    const t1name = match.team1 ? `${match.team1.teamNumber} ${match.team1.teamName}` : 'TBD';
+    const t2name = match.team2 ? `${match.team2.teamNumber} ${match.team2.teamName}` : 'TBD';
+    const s1 = match.isBestOf3 ? match.team1Wins : match.team1Score;
+    const s2 = match.isBestOf3 ? match.team2Wins : match.team2Score;
+    const wid = match.winner?._id || match.winner;
+    const winnerName = wid
+      ? (wid === match.team1?._id || wid === match.team1?._id?.toString() ? t1name : t2name)
+      : '(เสมอ)';
+    scoreForm.innerHTML = `
+      <div class="alert alert-success" style="margin-top:1rem">
+        <strong>✅ บันทึกผลแล้ว</strong><br>
+        ${t1name} <strong>${s1}</strong> : <strong>${s2}</strong> ${t2name}<br>
+        <small>ผู้ชนะ: <strong>${winnerName}</strong></small>
+      </div>`;
+    return;
+  }
+
+  scoreForm.innerHTML = renderBracketScoreMatchCard(match, _bsComp, _bsCompId);
+}
+
+// prefill: { t1: {criteria details + _bonus + _time}, t2: {...} }
+// isEdit: true = "อัพเดทผล", false = "บันทึกผลคู่นี้"
+function renderBracketScoreMatchCard(match, comp, compId, prefill = null, isEdit = false) {
+  const mid = match._id;
+  const isBo3 = match.isBestOf3;
+  const stageLabel = STAGE_LABELS[match.stage] || match.stage;
+  const nextGame = isBo3 ? Math.min((match.games?.length || 0) + 1, 3) : 1;
+
+  // helper: ดึง pre-fill value
+  const pv = (side, key, fallback = 0) => prefill?.[side]?.[key] ?? fallback;
+  const pvChecked = (side, key) => prefill?.[side]?.[key] === true;
+
+  const criteriaFields = (prefix, side) => (comp.scoringCriteria || []).map(cr => `
+    <div class="criteria-field">
+      <div class="criteria-label" style="font-size:0.75rem">${cr.label}
+        <span style="color:var(--text-muted)">${cr.pointsPerUnit ? `×${cr.pointsPerUnit}` : `${cr.points}pt`}</span>
+      </div>
+      ${cr.type === 'boolean'
+        ? `<label><input type="checkbox" id="${prefix}_${cr.key}" ${pvChecked(side, cr.key) ? 'checked' : ''} onchange="calcBracketPreview('${mid}','${compId}')"> ทำสำเร็จ</label>`
+        : `<input type="number" class="form-input" id="${prefix}_${cr.key}" min="0" max="${cr.maxValue||99}" value="${pv(side, cr.key)}" oninput="calcBracketPreview('${mid}','${compId}')">`
+      }
+    </div>`).join('');
+
+  const teamCol = (prefix, side, team) => `
+    <div class="bsc-team-col">
+      <div class="bsc-team-name">${team?.teamNumber || ''} ${team?.teamName || 'TBD'}</div>
+      <div class="text-muted" style="font-size:0.73rem;margin-bottom:0.75rem">${team?.schoolName || ''}</div>
+      ${criteriaFields(prefix, side)}
+      <div class="form-group" style="margin-top:0.5rem">
+        <label class="form-label" style="font-size:0.75rem">⏱ เวลา (วิ)</label>
+        <input type="number" class="form-input" id="${prefix}_time" min="0" step="0.01" value="${pv(side, '_time')}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="font-size:0.75rem">⭐ โบนัส</label>
+        <input type="number" class="form-input" id="${prefix}_bonus" min="0" value="${pv(side, '_bonus')}" oninput="calcBracketPreview('${mid}','${compId}')">
+      </div>
+      <div class="score-preview" style="margin-top:0.5rem">
+        <div class="score-preview-label">คะแนนรวม</div>
+        <div class="score-preview-value" id="${prefix}_preview">0</div>
+      </div>
+    </div>`;
+
+  const gameSelector = isBo3 ? `
+    <div class="form-group" style="margin-bottom:1rem">
+      <label class="form-label">บันทึกเกมที่</label>
+      <select class="form-input" id="bm${mid}_game" style="max-width:160px">
+        <option value="1" ${nextGame===1?'selected':''}>เกม 1</option>
+        <option value="2" ${nextGame===2?'selected':''}>เกม 2</option>
+        <option value="3" ${nextGame===3?'selected':''}>เกม 3</option>
+      </select>
+      <small class="text-muted" style="margin-left:0.5rem">
+        สถานะ: ทีม1 ชนะ ${match.team1Wins??0} / ทีม2 ชนะ ${match.team2Wins??0} เกม
+      </small>
+    </div>` : '';
+
+  // แสดงคะแนนปัจจุบันกรณีแก้ไข
+  const currentScoreBanner = isEdit && match.status === 'completed' ? `
+    <div class="alert" style="background:var(--bg2);border:1px solid var(--border);margin-bottom:1rem;font-size:0.85rem">
+      📊 คะแนนปัจจุบัน: <strong>${match.team1?.teamName || 'ทีม 1'}</strong>
+      <span style="font-size:1.1rem;font-weight:700;margin:0 0.5rem">${isBo3 ? match.team1Wins : match.team1Score} : ${isBo3 ? match.team2Wins : match.team2Score}</span>
+      <strong>${match.team2?.teamName || 'ทีม 2'}</strong>
+    </div>` : '';
+
+  return `
+    <div class="bsc-card" id="bsc_${mid}">
+      <div class="bsc-header">
+        <span>${stageLabel}</span>
+        ${isBo3 ? '<span class="badge-bo3">Best of 3</span>' : ''}
+        ${isEdit ? '<span class="badge" style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;font-size:0.72rem">✏️ แก้ไข</span>' : ''}
+      </div>
+      ${currentScoreBanner}
+      ${gameSelector}
+      <div class="bsc-teams">
+        ${teamCol(`bm${mid}_t1`, 't1', match.team1)}
+        <div class="bsc-vs">VS</div>
+        ${teamCol(`bm${mid}_t2`, 't2', match.team2)}
+      </div>
+      <div id="bsc_msg_${mid}" class="alert" style="display:none;margin-top:0.75rem"></div>
+      <button class="btn btn-primary btn-full" style="margin-top:1rem"
+        onclick="submitBracketMatchScore('${mid}','${compId}',${isBo3})">
+        ${isEdit ? '💾 อัพเดทผล' : '💾 บันทึกผลคู่นี้'}
+      </button>
+    </div>`;
+}
+
+function calcBracketPreview(matchId, compId) {
+  const comp = allCompetitions.find(c => c._id === compId);
+  if (!comp) return;
+  ['t1', 't2'].forEach(side => {
+    const prefix = `bm${matchId}_${side}`;
+    let total = 0;
+    (comp.scoringCriteria || []).forEach(cr => {
+      const el = document.getElementById(`${prefix}_${cr.key}`);
+      if (!el) return;
+      if (cr.type === 'boolean') {
+        if (el.checked) total += cr.isPenalty ? -cr.points : cr.points;
+      } else {
+        const val = parseFloat(el.value) || 0;
+        total += (cr.isPenalty ? -1 : 1) * val * (cr.pointsPerUnit || cr.points || 0);
+      }
+    });
+    total += parseFloat(document.getElementById(`${prefix}_bonus`)?.value) || 0;
+    const preview = document.getElementById(`${prefix}_preview`);
+    if (preview) preview.textContent = total;
+  });
+}
+
+async function submitBracketMatchScore(matchId, compId, isBo3) {
+  const comp = allCompetitions.find(c => c._id === compId);
+  if (!comp) return;
+
+  const calcScore = (prefix) => {
+    let total = 0;
+    (comp.scoringCriteria || []).forEach(cr => {
+      const el = document.getElementById(`${prefix}_${cr.key}`);
+      if (!el) return;
+      if (cr.type === 'boolean') {
+        if (el.checked) total += cr.isPenalty ? -cr.points : cr.points;
+      } else {
+        const val = parseFloat(el.value) || 0;
+        total += (cr.isPenalty ? -1 : 1) * val * (cr.pointsPerUnit || cr.points || 0);
+      }
+    });
+    total += parseFloat(document.getElementById(`${prefix}_bonus`)?.value) || 0;
+    return total;
+  };
+
+  // เก็บ criteria details เพื่อ pre-fill ตอนแก้ไขในภายหลัง
+  const collectDetails = (prefix) => {
+    const details = {};
+    (comp.scoringCriteria || []).forEach(cr => {
+      const el = document.getElementById(`${prefix}_${cr.key}`);
+      if (!el) return;
+      details[cr.key] = cr.type === 'boolean' ? el.checked : (parseFloat(el.value) || 0);
+    });
+    details._bonus = parseFloat(document.getElementById(`${prefix}_bonus`)?.value) || 0;
+    details._time  = parseFloat(document.getElementById(`${prefix}_time`)?.value)  || 0;
+    return details;
+  };
+
+  const team1Score = calcScore(`bm${matchId}_t1`);
+  const team2Score = calcScore(`bm${matchId}_t2`);
+  const msgEl = document.getElementById(`bsc_msg_${matchId}`);
+  const btn = document.querySelector(`#bsc_${matchId} .btn-primary`);
+  if (btn) btn.disabled = true;
+
+  try {
+    if (isBo3) {
+      const gameNumber = parseInt(document.getElementById(`bm${matchId}_game`)?.value || '1');
+      await apiFetch(`/brackets/${compId}/matches/${matchId}/game`, {
+        method: 'POST',
+        body: JSON.stringify({ gameNumber, team1Score, team2Score })
+      });
+    } else {
+      await apiFetch(`/brackets/${compId}/matches/${matchId}/result`, {
+        method: 'POST',
+        body: JSON.stringify({
+          team1Score, team2Score,
+          team1Details: collectDetails(`bm${matchId}_t1`),
+          team2Details: collectDetails(`bm${matchId}_t2`)
+        })
+      });
+    }
+    showToast('บันทึกผลเรียบร้อย ✅', 'success');
+
+    // ถ้าเปิดจาก edit modal (จัดการคะแนน) → ปิด modal และ reload ตาราง
+    const bmEditModal = document.getElementById('bmEditModal');
+    if (bmEditModal?.classList.contains('active')) {
+      closeModal();
+      const editCompId = window._bmEditCompId || compId;
+      await loadBracketMatchTable(editCompId, comp);
+      return;
+    }
+
+    // Normal score entry flow — restore dropdown selections
+    const prevRound = document.getElementById('bsRoundSelect')?.value;
+    const prevMatch = document.getElementById('bsMatchSelect')?.value;
+    await renderBracketScoreSection(compId, comp);
+    if (prevRound) {
+      const sel = document.getElementById('bsRoundSelect');
+      if (sel) { sel.value = prevRound; onBracketRoundSelect(); }
+      if (prevMatch) {
+        const msel = document.getElementById('bsMatchSelect');
+        if (msel) { msel.value = prevMatch; onBracketMatchSelect(); }
+      }
+    }
+  } catch (err) {
+    if (msgEl) { msgEl.textContent = err.message; msgEl.className = 'alert alert-error'; msgEl.style.display = 'block'; }
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ─── INIT ─────────────────────────────────────────────────────
