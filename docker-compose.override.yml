@@ -18,6 +18,7 @@ services:
       CHOKIDAR_USEPOLLING: "true"     # ให้ file watcher เห็นการเปลี่ยนแปลงไฟล์ใน Docker (Mac/Win)
       # Override บังคับ เพราะ env_file override base แล้วแต่ MongoDB ต้องชี้ใน compose network
       MONGODB_URI: mongodb://mongodb:27017/sisaket_robotics
+      JWT_SECRET: ${JWT_SECRET:-dev_only_secret_do_not_use_in_production_at_least_32ch}
     volumes:
       - ./backend:/app                # โค้ดจริงจาก host
       - ./.env.development:/.env.development:ro  # ให้ env loader หาไฟล์ได้ (backend WORKDIR=/app, root=/..)

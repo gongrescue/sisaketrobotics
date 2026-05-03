@@ -25,7 +25,7 @@ app.use('/api/teams', require('./routes/teams'));
 app.use('/api/scores', require('./routes/scores'));
 app.use('/api/rankings', require('./routes/rankings'));
 app.use('/api/matches', require('./routes/matches'));
-app.use('/api/brackets', require('./routes/brackets'));
+app.use('/api/tour',    require('./routes/tour'));
 
 // Health check
 app.get('/api/health', (req, res) => {

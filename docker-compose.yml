@@ -36,9 +36,8 @@ services:
     environment:
       # Override ให้ชี้ไปที่ MongoDB container ใน compose network
       MONGODB_URI: mongodb://mongodb:27017/sisaket_robotics
-      # secret ต้องส่งมาจาก host shell หรือไฟล์ .env ที่ root (gitignored)
-      # ตัวอย่าง: JWT_SECRET=xxx docker compose up
-      JWT_SECRET: ${JWT_SECRET:?ต้องตั้ง JWT_SECRET ก่อนรัน — สร้างด้วย openssl rand -hex 32}
+      # env_file (.env.{NODE_ENV}) จะ override ผ่าน docker-compose.override.yml
+      JWT_SECRET: ${JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
     networks:
       - sisaket_network

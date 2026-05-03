@@ -34,7 +34,9 @@ const matchSchema = new mongoose.Schema({
   games: [{
     gameNumber: Number,
     team1Score: Number,
+    team1Time:  { type: Number, default: 0 },
     team2Score: Number,
+    team2Time:  { type: Number, default: 0 },
     winnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' }
   }],
   team1Wins: { type: Number, default: 0 },

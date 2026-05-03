@@ -138,12 +138,11 @@
       <div class="user-badge" id="userBadge"></div>
     </div>
     <div class="admin-tabs">
-      <button class="tab-btn active" id="tabBtn-teams"   onclick="switchAdminTab('teams')"   style="display:none">👥 ทีม</button>
-      <button class="tab-btn"        id="tabBtn-scores"  onclick="switchAdminTab('scores')">📝 บันทึกคะแนน</button>
+      <button class="tab-btn active" id="tabBtn-teams"      onclick="switchAdminTab('teams')"      style="display:none">👥 ทีม</button>
+      <button class="tab-btn"        id="tabBtn-scores"     onclick="switchAdminTab('scores')">📝 บันทึกคะแนน</button>
       <button class="tab-btn"        id="tabBtn-scoreTable" onclick="switchAdminTab('scoreTable')" style="display:none">📊 จัดการคะแนน</button>
-      <button class="tab-btn"        id="tabBtn-matches" onclick="switchAdminTab('matches')" style="display:none">⚔️ Battle</button>
-      <button class="tab-btn"        id="tabBtn-bracket" onclick="switchAdminTab('bracket')" style="display:none">🏅 จับสาย</button>
-      <button class="tab-btn"        id="tabBtn-users"   onclick="switchAdminTab('users')"   style="display:none">👤 ผู้ใช้งาน</button>
+      <button class="tab-btn"        id="tabBtn-matches"    onclick="switchAdminTab('matches')"    style="display:none">⚔️ Battle</button>
+      <button class="tab-btn"        id="tabBtn-users"      onclick="switchAdminTab('users')"      style="display:none">👤 ผู้ใช้งาน</button>
     </div>
 
     <!-- TEAMS TAB -->
@@ -185,10 +184,8 @@
               <option value="">เลือกประเภท...</option>
             </select>
           </div>
-          <!-- Bracket score section (tour competitions only) -->
-          <div id="bracketScoreSection" style="display:none"></div>
-
-          <!-- Normal score fields (hidden for tour competitions) -->
+          <!-- Tour section (เที่ยวเมืองศรีสะเกษ) — phase switcher + knockout entry -->
+          <div id="tourScoreSection" style="display:none"></div>
           <div id="normalScoreFields">
           <div class="form-group">
             <label class="form-label">ทีม</label>
@@ -285,24 +282,6 @@
         <button class="btn btn-primary btn-sm" onclick="showMatchModal()">+ เพิ่มคู่แข่ง</button>
       </div>
       <div id="matchesList"><p class="text-muted text-center p-4">เลือกประเภทการแข่งขัน Battle</p></div>
-    </div>
-
-    <!-- BRACKET TAB -->
-    <div id="adminTab-bracket" class="admin-tab-content">
-      <div class="bracket-toolbar">
-        <select class="filter-select" id="bracketCompFilter" onchange="loadBracket()">
-          <option value="">-- เลือกประเภทการแข่งขัน --</option>
-        </select>
-        <div class="bracket-actions" id="bracketActions" style="display:none">
-          <button class="btn btn-primary btn-sm" onclick="generateBracket('random')">🎲 สุ่มจับสาย</button>
-          <button class="btn btn-outline btn-sm" onclick="showManualPairModal()">✏️ จับสายด้วยตนเอง</button>
-          <button class="btn btn-outline btn-sm" onclick="advanceBracket()">⏭ สร้างรอบถัดไป</button>
-          <button class="btn btn-danger btn-sm" onclick="showCancelRoundModal()">🗑 ยกเลิกจับคู่</button>
-        </div>
-      </div>
-      <div id="bracketContent">
-        <p class="text-muted text-center p-4">เลือกประเภทการแข่งขันเพื่อดูสายการแข่งขัน</p>
-      </div>
     </div>
 
     <!-- USERS TAB -->
@@ -416,89 +395,6 @@
   <div class="modal-footer">
     <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
     <button class="btn btn-primary" onclick="saveUser()">💾 บันทึก</button>
-  </div>
-</div>
-
-<!-- Bracket Score Modal -->
-<div class="modal" id="bracketMatchModal">
-  <div class="modal-header">
-    <h3 id="bracketMatchModalTitle">บันทึกผลการแข่งขัน</h3>
-    <button class="modal-close" onclick="closeModal()">✕</button>
-  </div>
-  <div class="modal-body">
-    <input type="hidden" id="bracketMatchId">
-    <input type="hidden" id="bracketMatchIsBo3">
-    <div id="bracketMatchForm"></div>
-    <div id="bracketMatchMsg" class="alert" style="display:none"></div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
-    <button class="btn btn-primary" id="bracketMatchSaveBtn" onclick="saveBracketResult()">💾 บันทึก</button>
-  </div>
-</div>
-
-<!-- Advance Round Choice Modal -->
-<div class="modal" id="advanceChoiceModal">
-  <div class="modal-header">
-    <h3>⏭ สร้างรอบถัดไป</h3>
-    <button class="modal-close" onclick="closeModal()">✕</button>
-  </div>
-  <div class="modal-body">
-    <p style="margin-bottom:1.25rem;color:var(--text-muted)">เลือกวิธีจับคู่ผู้ชนะรอบนี้เข้าสู่รอบถัดไป</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-      <button class="btn btn-primary" style="padding:1.25rem;font-size:1rem" onclick="doAdvanceBracketRandom()">
-        🎲<br><span style="font-size:0.85rem">สุ่มจับคู่</span>
-      </button>
-      <button class="btn btn-outline" style="padding:1.25rem;font-size:1rem" onclick="doAdvanceBracketManual()">
-        ✏️<br><span style="font-size:0.85rem">จับคู่เอง</span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- Manual Pair Modal -->
-<div class="modal modal-lg" id="manualPairModal">
-  <div class="modal-header">
-    <h3>✏️ จับสายด้วยตนเอง</h3>
-    <button class="modal-close" onclick="closeModal()">✕</button>
-  </div>
-  <div class="modal-body">
-    <div id="manualPairForm"></div>
-    <div id="manualPairMsg" class="alert" style="display:none"></div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
-    <button class="btn btn-primary" onclick="saveManualPairs()">💾 ยืนยันสาย</button>
-  </div>
-</div>
-
-<!-- Bracket Match Edit Modal (จัดการคะแนน) -->
-<div class="modal modal-lg" id="bmEditModal">
-  <div class="modal-header">
-    <h3>✏️ แก้ไขผลการแข่งขัน</h3>
-    <button class="modal-close" onclick="closeModal()">✕</button>
-  </div>
-  <div class="modal-body" id="bmEditModalBody" style="max-height:70vh;overflow-y:auto;padding:1rem">
-  </div>
-</div>
-
-<!-- Cancel Round Modal -->
-<div class="modal" id="cancelRoundModal">
-  <div class="modal-header">
-    <h3>🗑 ยกเลิกจับคู่</h3>
-    <button class="modal-close" onclick="closeModal()">✕</button>
-  </div>
-  <div class="modal-body">
-    <p style="margin-bottom:1rem;color:var(--text-muted)">เลือกรอบที่ต้องการยกเลิกการจับคู่ทั้งหมด</p>
-    <div class="form-group">
-      <label class="form-label">รอบที่ต้องการยกเลิก</label>
-      <select class="form-input" id="cancelRoundSelect"></select>
-    </div>
-    <div class="alert alert-error" id="cancelRoundMsg" style="display:none;margin-top:0.75rem"></div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
-    <button class="btn btn-danger" onclick="doDeleteBracketRound()">🗑 ยืนยันยกเลิก</button>
   </div>
 </div>
 
