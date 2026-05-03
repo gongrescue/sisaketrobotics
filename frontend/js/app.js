@@ -535,31 +535,42 @@ function renderLbTable(rankData, comp) {
       <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;text-align:center">
         📋 รอบคัดเลือก — 8 อันดับแรกผ่านสู่รอบน็อคเอาท์
       </div>
+      <div class="table-container">
       <table class="data-table">
         <thead><tr>
           <th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th>
           <th style="text-align:center">คะแนนรวม</th>
-          <th style="text-align:center">เวลาดีสุด</th>
+          <th style="text-align:center">เวลาดีสุด (วิ)</th>
           <th style="text-align:center">รอบ</th>
+          <th style="text-align:center">สถานะ</th>
         </tr></thead>
         <tbody>
-          ${rankData.data.map((r, i) => `
-            <tr ${i < 8 ? 'style="background:rgba(99,102,241,0.06)"' : ''}>
-              <td>
-                <span class="rank-badge rank-${i < 3 ? i+1 : 'n'}">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</span>
-                ${i < 8 ? '<span style="font-size:0.65rem;background:var(--accent);color:#fff;padding:1px 5px;border-radius:999px;margin-left:3px">TOP8</span>' : ''}
+          ${rankData.data.map(r => {
+            const top8 = r.rank <= 8;
+            const rankCls = r.rank <= 3 ? r.rank : 'n';
+            const medals  = ['🥇','🥈','🥉'];
+            const statusBadge = top8
+              ? '<span class="badge-status badge-done">TOP 8</span>'
+              : '<span class="badge-status badge-elim">สิ้นสุดการแข่งขัน</span>';
+            return `
+            <tr ${top8 ? 'style="background:rgba(46,204,113,0.05)"' : ''}>
+              <td style="text-align:center">
+                <span class="rank-badge rank-${rankCls}">${r.rank <= 3 ? medals[r.rank-1] : r.rank}</span>
               </td>
               <td>
                 <strong>${r.team?.teamName || '-'}</strong>
-                <div style="font-size:0.72rem;color:var(--text-dim)">${r.team?.teamNumber || ''}</div>
+                <div style="font-size:0.72rem;color:var(--text-dim)">#${r.team?.teamNumber || ''}</div>
               </td>
               <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
               <td style="text-align:center;font-weight:700;color:var(--accent);font-size:1.1rem">${r.totalScore}</td>
-              <td style="text-align:center;color:var(--text-muted)">${r.bestTime ? r.bestTime.toFixed(2) + ' วิ' : '–'}</td>
+              <td style="text-align:center;color:var(--text-muted)">${r.bestTime ? r.bestTime.toFixed(2) : '–'}</td>
               <td style="text-align:center;color:var(--text-muted)">${r.roundsPlayed}</td>
-            </tr>`).join('')}
+              <td style="text-align:center">${statusBadge}</td>
+            </tr>`;
+          }).join('')}
         </tbody>
-      </table>`;
+      </table>
+      </div>`;
   }
   // ─ Tour: รอบน็อคเอาท์ ─
   if (rankData.type === 'KNOCKOUT') {
@@ -1105,6 +1116,74 @@ function resetScoreForm() {
   showToast('ล้างฟอร์มแล้ว', 'info');
 }
 
+async function submitScore() {
+  const compId  = document.getElementById('scoreCompetition')?.value || '';
+  const teamId  = document.getElementById('scoreTeam')?.value || '';
+  const round   = parseInt(document.getElementById('scoreRound')?.value) || 1;
+  const editId  = document.getElementById('editingScoreId')?.value || '';
+
+  if (!compId) { showAlert('scoreMsg', 'กรุณาเลือกประเภทการแข่งขัน', 'error'); return; }
+  if (!teamId) { showAlert('scoreMsg', 'กรุณาเลือกทีม', 'error'); return; }
+
+  const comp = allCompetitions.find(c => c._id === compId);
+
+  // Collect criteria details
+  const details = {};
+  comp?.scoringCriteria?.forEach(cr => {
+    const el = document.getElementById(`crit_${cr.key}`);
+    if (!el) return;
+    details[cr.key] = cr.type === 'boolean' ? el.checked : (parseFloat(el.value) || 0);
+  });
+
+  const payload = {
+    team:            teamId,
+    competition:     compId,
+    round,
+    details,
+    timeUsedSeconds: parseFloat(document.getElementById('scoreTime')?.value)    || 0,
+    taskCompleted:   !!document.getElementById('scoreCompleted')?.checked,
+    distanceCm:      parseFloat(document.getElementById('scoreDistance')?.value) || 0,
+    bonusScore:      parseFloat(document.getElementById('scoreBonusScore')?.value) || 0,
+    notes:           document.getElementById('scoreNotes')?.value?.trim() || ''
+  };
+
+  const btn = document.getElementById('submitScoreBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const url    = editId ? `/scores/${editId}` : '/scores';
+    const method = editId ? 'PUT' : 'POST';
+    await apiFetch(url, { method, body: JSON.stringify(payload) });
+
+    showToast(editId ? 'แก้ไขคะแนนเรียบร้อย ✅' : 'บันทึกคะแนนเรียบร้อย ✅', 'success');
+
+    if (editId) {
+      cancelEditScore();
+    } else {
+      // Reset criteria fields only (keep competition/team/round for next entry)
+      comp?.scoringCriteria?.forEach(cr => {
+        const el = document.getElementById(`crit_${cr.key}`);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = false; else el.value = 0;
+      });
+      if (document.getElementById('scoreTime'))       document.getElementById('scoreTime').value = '';
+      if (document.getElementById('scoreCompleted')) document.getElementById('scoreCompleted').checked = false;
+      if (document.getElementById('scoreDistance'))  document.getElementById('scoreDistance').value = '';
+      if (document.getElementById('scoreBonusScore')) document.getElementById('scoreBonusScore').value = 0;
+      if (document.getElementById('scoreNotes'))     document.getElementById('scoreNotes').value = '';
+      calcPreviewScore(compId);
+    }
+
+    loadRecentScores(compId, teamId);
+    const msg = document.getElementById('scoreMsg');
+    if (msg) msg.style.display = 'none';
+  } catch (err) {
+    showAlert('scoreMsg', err.message || 'บันทึกไม่สำเร็จ', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function onCompetitionChange() {
   const compId = document.getElementById('scoreCompetition').value;
   const teamSelect = document.getElementById('scoreTeam');
@@ -1562,48 +1641,76 @@ async function renderTourScoreSection(compId, comp) {
   const sect = document.getElementById('tourScoreSection');
   if (!sect) return;
 
+  // สร้าง criteria fields สำหรับแต่ละทีม
+  const buildTeamCriteria = (prefix) => {
+    if (!comp.scoringCriteria?.length) return '';
+    return comp.scoringCriteria.map(cr => `
+      <div class="criteria-field">
+        <div class="criteria-label">${cr.label}${cr.isPenalty ? ' (หักคะแนน)' : ''} ${cr.pointsPerUnit ? `(×${cr.pointsPerUnit} คะแนน)` : `(${cr.points} คะแนน)`}</div>
+        ${cr.type === 'boolean'
+          ? `<label><input type="checkbox" class="criteria-input" id="${prefix}_crit_${cr.key}" onchange="calcTourGamePreview()" style="width:auto"> ทำสำเร็จ</label>`
+          : `<input type="number" class="form-input criteria-input" id="${prefix}_crit_${cr.key}" min="0" max="${cr.maxValue || 99}" value="0" onchange="calcTourGamePreview()" oninput="calcTourGamePreview()">`
+        }
+      </div>`).join('');
+  };
+
   sect.innerHTML = `
-    <div style="background:var(--surface2);border-radius:var(--radius);padding:1rem;margin-bottom:1rem">
-      <div style="font-weight:700;margin-bottom:0.75rem;color:var(--accent)">⚙️ ระบบการแข่งขัน ${comp.name}</div>
-      <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
+    <div class="bsc-card">
+      <div class="bsc-header">⚙️ ระบบการแข่งขัน ${comp.name}</div>
+      <div class="admin-toolbar">
         <button id="tourPhaseQual" class="btn btn-primary btn-sm" onclick="switchTourPhase('qualifying','${compId}')">📋 รอบคัดเลือก</button>
         <button id="tourPhaseKO"   class="btn btn-outline btn-sm" onclick="switchTourPhase('knockout','${compId}')">⚔️ น็อคเอาท์</button>
       </div>
       <div id="tourKOSection" style="display:none">
-        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem">
-          <div style="flex:1;min-width:140px">
+        <div class="form-row" style="margin-bottom:0.75rem">
+          <div class="form-group">
             <label class="form-label">รอบ</label>
-            <select id="tourStageSelect" class="form-select" onchange="onTourStageChange('${compId}')">
+            <select id="tourStageSelect" class="form-input" onchange="onTourStageChange('${compId}')">
               <option value="">-- เลือกรอบ --</option>
               <option value="quarterfinal">รอบ 8 ทีม</option>
               <option value="semifinal">รอบ 4 ทีม</option>
               <option value="final">รอบชิงชนะเลิศ</option>
             </select>
           </div>
-          <div style="flex:2;min-width:180px">
+          <div class="form-group">
             <label class="form-label">คู่การแข่งขัน</label>
-            <select id="tourMatchSelect" class="form-select" onchange="onTourMatchChange('${compId}')">
+            <select id="tourMatchSelect" class="form-input" onchange="onTourMatchChange('${compId}')">
               <option value="">-- เลือกคู่ --</option>
             </select>
           </div>
         </div>
         <div id="tourMatchInfo" style="display:none;margin-bottom:0.75rem"></div>
         <div id="tourGameForm" style="display:none">
-          <div style="font-weight:600;margin-bottom:0.5rem">บันทึกผลเกม</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.5rem">
-            <div>
-              <label class="form-label" id="tourT1Label">ทีม 1</label>
-              <input type="number" id="tourT1Score" class="form-input" placeholder="คะแนน" min="0" step="1" oninput="calcTourGamePreview()">
-              <input type="number" id="tourT1Time"  class="form-input" placeholder="เวลา (วินาที)" min="0" step="0.01" style="margin-top:0.4rem" oninput="calcTourGamePreview()">
+          <div class="form-section-title">บันทึกผลเกม (Best of 3)</div>
+          <div class="bsc-teams">
+            <div class="bsc-team-col">
+              <div class="bsc-team-name" id="tourT1Label">ทีม 1</div>
+              ${buildTeamCriteria('koT1')}
+              <div class="form-group" style="margin-top:0.5rem">
+                <label class="form-label">⏱ เวลา (วินาที)</label>
+                <input type="number" id="tourT1Time" class="form-input" placeholder="เช่น 95.50" min="0" step="0.01" oninput="calcTourGamePreview()">
+              </div>
+              <div class="score-preview">
+                <div class="score-preview-label">คะแนนรวม</div>
+                <div class="score-preview-value" id="koT1Preview">0</div>
+              </div>
             </div>
-            <div>
-              <label class="form-label" id="tourT2Label">ทีม 2</label>
-              <input type="number" id="tourT2Score" class="form-input" placeholder="คะแนน" min="0" step="1" oninput="calcTourGamePreview()">
-              <input type="number" id="tourT2Time"  class="form-input" placeholder="เวลา (วินาที)" min="0" step="0.01" style="margin-top:0.4rem" oninput="calcTourGamePreview()">
+            <div class="bsc-vs">VS</div>
+            <div class="bsc-team-col">
+              <div class="bsc-team-name" id="tourT2Label">ทีม 2</div>
+              ${buildTeamCriteria('koT2')}
+              <div class="form-group" style="margin-top:0.5rem">
+                <label class="form-label">⏱ เวลา (วินาที)</label>
+                <input type="number" id="tourT2Time" class="form-input" placeholder="เช่น 95.50" min="0" step="0.01" oninput="calcTourGamePreview()">
+              </div>
+              <div class="score-preview">
+                <div class="score-preview-label">คะแนนรวม</div>
+                <div class="score-preview-value" id="koT2Preview">0</div>
+              </div>
             </div>
           </div>
-          <div id="tourGamePreview" style="min-height:1.5rem;margin-bottom:0.5rem;font-size:0.85rem;color:var(--accent)"></div>
-          <button class="btn btn-primary" id="tourSubmitBtn" onclick="submitTourGame()">💾 บันทึกเกม</button>
+          <div id="tourGamePreview" style="min-height:1.5rem;margin:0.75rem 0;font-size:0.85rem;color:var(--accent)"></div>
+          <button class="btn btn-primary btn-full" id="tourSubmitBtn" onclick="submitTourGame()">💾 บันทึกเกม</button>
         </div>
       </div>
     </div>
@@ -1618,16 +1725,23 @@ function switchTourPhase(phase, compId) {
   const btnQual = document.getElementById('tourPhaseQual');
   const btnKO   = document.getElementById('tourPhaseKO');
 
+  const titleEl = document.getElementById('recentScoresTitle');
   if (phase === 'qualifying') {
     if (koSect)  koSect.style.display  = 'none';
     if (normSct) normSct.style.display = '';
     if (btnQual) { btnQual.classList.add('btn-primary'); btnQual.classList.remove('btn-outline'); }
     if (btnKO)   { btnKO.classList.add('btn-outline');   btnKO.classList.remove('btn-primary'); }
+    if (titleEl) titleEl.textContent = 'คะแนนล่าสุด';
+    const recentDiv = document.getElementById('recentScores');
+    if (recentDiv) recentDiv.innerHTML = '<p class="text-muted">เลือกทีมเพื่อดูคะแนน</p>';
   } else {
     if (koSect)  koSect.style.display  = '';
     if (normSct) normSct.style.display = 'none';
     if (btnQual) { btnQual.classList.add('btn-outline');  btnQual.classList.remove('btn-primary'); }
     if (btnKO)   { btnKO.classList.add('btn-primary');    btnKO.classList.remove('btn-outline'); }
+    if (titleEl) titleEl.textContent = 'ผลเกมคู่นี้';
+    const recentDiv = document.getElementById('recentScores');
+    if (recentDiv) recentDiv.innerHTML = '<p class="text-muted">เลือกคู่การแข่งขันเพื่อดูผลเกม</p>';
     onTourStageChange(compId);
   }
 }
@@ -1691,28 +1805,62 @@ async function onTourMatchChange(compId) {
 
     const t1 = match.team1 ? `#${match.team1.teamNumber} ${match.team1.teamName}` : 'BYE';
     const t2 = match.team2 ? `#${match.team2.teamNumber} ${match.team2.teamName}` : 'BYE';
-
-    const gamesHtml = (match.games || []).map(g => {
-      const winnerName = g.winnerId
-        ? (g.winnerId === match.team1?._id ? match.team1.teamName : match.team2?.teamName)
-        : '?';
-      return `<div>เกม ${g.gameNumber}: <strong>${match.team1?.teamName}</strong> ${g.team1Score}คะแนน/${g.team1Time}วิ
-              vs <strong>${match.team2?.teamName}</strong> ${g.team2Score}คะแนน/${g.team2Time}วิ → 🏆 ${winnerName}</div>`;
-    }).join('');
+    const t1Name = match.team1?.teamName || 'ทีม 1';
+    const t2Name = match.team2?.teamName || 'ทีม 2';
 
     const statusBadge = match.status === 'completed'
-      ? `<span style="background:var(--success);color:#fff;padding:0.15rem 0.5rem;border-radius:1rem;font-size:0.78rem">✅ จบแล้ว</span>`
-      : `<span style="background:var(--warning);color:#fff;padding:0.15rem 0.5rem;border-radius:1rem;font-size:0.78rem">⏳ กำลังแข่ง</span>`;
+      ? `<span class="badge-status badge-done">✅ จบแล้ว</span>`
+      : `<span class="badge-status badge-progress">⏳ กำลังแข่ง</span>`;
 
     matchInfo.innerHTML = `
-      <div style="background:var(--surface);border-radius:var(--radius);padding:0.75rem;font-size:0.85rem">
-        <div style="font-weight:700;margin-bottom:0.4rem">${t1} vs ${t2} ${statusBadge}</div>
-        <div style="margin-bottom:0.3rem">ชนะ: ${match.team1Wins || 0} – ${match.team2Wins || 0} (เกม ${(match.games || []).length}/3)</div>
-        ${gamesHtml}
+      <div class="bsc-card" style="margin-bottom:0;font-size:0.85rem">
+        <div class="bsc-header">${t1} vs ${t2} ${statusBadge}</div>
+        <div>ชนะ: ${match.team1Wins || 0} – ${match.team2Wins || 0} (เกม ${(match.games || []).length}/3)</div>
         ${match.winner ? `<div style="color:var(--success);font-weight:700;margin-top:0.3rem">🏆 ผู้ชนะ: ${match.winner.teamName}</div>` : ''}
       </div>
     `;
     matchInfo.style.display = '';
+
+    // แสดงตารางผลเกมในแผง "คะแนนล่าสุด" ด้านขวา (แบบเดียวกับรอบคัดเลือก)
+    const recentDiv = document.getElementById('recentScores');
+    if (recentDiv) {
+      const games = match.games || [];
+      if (!games.length) {
+        recentDiv.innerHTML = '<p class="text-muted">ยังไม่มีผลเกม</p>';
+      } else {
+        recentDiv.innerHTML = `
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width:60px">เกม</th>
+                  <th style="width:90px">${t1Name} คะแนน</th>
+                  <th style="width:100px">⏱ เวลา (วิ)</th>
+                  <th style="width:90px">${t2Name} คะแนน</th>
+                  <th style="width:100px">⏱ เวลา (วิ)</th>
+                  <th>ผู้ชนะ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${games.map(g => {
+                  const isT1Win = String(g.winnerId) === String(match.team1?._id);
+                  const winnerName = g.winnerId ? (isT1Win ? t1Name : t2Name) : '?';
+                  return `
+                  <tr>
+                    <td style="text-align:center;font-weight:600">${g.gameNumber}</td>
+                    <td style="text-align:center;font-weight:700;color:${isT1Win ? 'var(--success)' : 'var(--accent)'}">${g.team1Score}</td>
+                    <td style="text-align:center">${g.team1Time > 0 ? Number(g.team1Time).toFixed(2) : '-'}</td>
+                    <td style="text-align:center;font-weight:700;color:${!isT1Win ? 'var(--success)' : 'var(--accent)'}">${g.team2Score}</td>
+                    <td style="text-align:center">${g.team2Time > 0 ? Number(g.team2Time).toFixed(2) : '-'}</td>
+                    <td style="font-weight:700;color:var(--success)">🏆 ${winnerName}</td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+    }
 
     if (match.status === 'completed') {
       if (gameForm) gameForm.style.display = 'none';
@@ -1722,9 +1870,19 @@ async function onTourMatchChange(compId) {
       if (t1label) t1label.textContent = t1;
       if (t2label) t2label.textContent = t2;
       // clear inputs
-      ['tourT1Score','tourT1Time','tourT2Score','tourT2Time'].forEach(id => {
+      const _comp = allCompetitions.find(c => c._id === compId);
+      _comp?.scoringCriteria?.forEach(cr => {
+        ['koT1', 'koT2'].forEach(prefix => {
+          const el = document.getElementById(`${prefix}_crit_${cr.key}`);
+          if (!el) return;
+          if (el.type === 'checkbox') el.checked = false; else el.value = 0;
+        });
+      });
+      ['tourT1Time', 'tourT2Time'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
       });
+      const p1 = document.getElementById('koT1Preview'); if (p1) p1.textContent = '0';
+      const p2 = document.getElementById('koT2Preview'); if (p2) p2.textContent = '0';
       document.getElementById('tourGamePreview').textContent = '';
       const submitBtn = document.getElementById('tourSubmitBtn');
       if (submitBtn) submitBtn.dataset.matchId = matchId;
@@ -1736,24 +1894,51 @@ async function onTourMatchChange(compId) {
 }
 
 function calcTourGamePreview() {
-  const s1 = parseFloat(document.getElementById('tourT1Score')?.value) || 0;
-  const t1 = parseFloat(document.getElementById('tourT1Time')?.value)  || 0;
-  const s2 = parseFloat(document.getElementById('tourT2Score')?.value) || 0;
-  const t2 = parseFloat(document.getElementById('tourT2Time')?.value)  || 0;
+  const compId = document.getElementById('scoreCompetition')?.value;
+  const comp   = allCompetitions.find(c => c._id === compId);
   const preview = document.getElementById('tourGamePreview');
+
+  // คำนวณคะแนนจาก criteria แบบเดียวกับรอบคัดเลือก
+  const calcScore = (prefix) => {
+    if (!comp?.scoringCriteria?.length) return 0;
+    let total = 0;
+    comp.scoringCriteria.forEach(cr => {
+      const el = document.getElementById(`${prefix}_crit_${cr.key}`);
+      if (!el) return;
+      if (cr.type === 'boolean') {
+        if (el.checked) total += cr.isPenalty ? -cr.points : cr.points;
+      } else {
+        const val = parseFloat(el.value) || 0;
+        const pts = val * (cr.pointsPerUnit || cr.points);
+        total += cr.isPenalty ? -pts : pts;
+      }
+    });
+    return total;
+  };
+
+  const s1 = calcScore('koT1');
+  const s2 = calcScore('koT2');
+  const t1 = parseFloat(document.getElementById('tourT1Time')?.value) || 0;
+  const t2 = parseFloat(document.getElementById('tourT2Time')?.value) || 0;
+
+  const p1 = document.getElementById('koT1Preview'); if (p1) p1.textContent = s1;
+  const p2 = document.getElementById('koT2Preview'); if (p2) p2.textContent = s2;
+
   if (!preview) return;
   if (!s1 && !s2) { preview.textContent = ''; return; }
 
+  const t1Name = document.getElementById('tourT1Label')?.textContent || 'ทีม 1';
+  const t2Name = document.getElementById('tourT2Label')?.textContent || 'ทีม 2';
   let result = '';
-  if (s1 > s2)       result = `🏆 ${document.getElementById('tourT1Label')?.textContent} ชนะ (คะแนนมากกว่า)`;
-  else if (s2 > s1)  result = `🏆 ${document.getElementById('tourT2Label')?.textContent} ชนะ (คะแนนมากกว่า)`;
+  if (s1 > s2)       result = `🏆 ${t1Name} ชนะ (คะแนนมากกว่า)`;
+  else if (s2 > s1)  result = `🏆 ${t2Name} ชนะ (คะแนนมากกว่า)`;
   else if (s1 === s2 && s1 > 0) {
     if (t1 > 0 && t2 > 0) {
-      if (t1 < t2)   result = `🏆 ${document.getElementById('tourT1Label')?.textContent} ชนะ (เวลาน้อยกว่า)`;
-      else if (t2 < t1) result = `🏆 ${document.getElementById('tourT2Label')?.textContent} ชนะ (เวลาน้อยกว่า)`;
+      if (t1 < t2)      result = `🏆 ${t1Name} ชนะ (เวลาน้อยกว่า)`;
+      else if (t2 < t1) result = `🏆 ${t2Name} ชนะ (เวลาน้อยกว่า)`;
       else               result = '⚠️ คะแนนและเวลาเท่ากัน ไม่สามารถตัดสินได้';
-    } else if (t1 > 0) result = `🏆 ${document.getElementById('tourT1Label')?.textContent} ชนะ (มีเวลา)`;
-    else if (t2 > 0)   result = `🏆 ${document.getElementById('tourT2Label')?.textContent} ชนะ (มีเวลา)`;
+    } else if (t1 > 0) result = `🏆 ${t1Name} ชนะ (มีเวลา)`;
+    else if (t2 > 0)   result = `🏆 ${t2Name} ชนะ (มีเวลา)`;
     else               result = '⚠️ คะแนนเท่ากัน กรุณากรอกเวลา';
   }
   preview.textContent = result;
@@ -1761,17 +1946,32 @@ function calcTourGamePreview() {
 
 async function submitTourGame() {
   const matchId = document.getElementById('tourSubmitBtn')?.dataset.matchId;
-  const compId  = document.getElementById('scoreCompSelect')?.value || '';
+  const compId  = document.getElementById('scoreCompetition')?.value || '';
   if (!matchId || !compId) return showToast('ไม่พบข้อมูลคู่การแข่งขัน', 'error');
 
-  const team1Score = parseFloat(document.getElementById('tourT1Score')?.value);
-  const team1Time  = parseFloat(document.getElementById('tourT1Time')?.value)  || 0;
-  const team2Score = parseFloat(document.getElementById('tourT2Score')?.value);
-  const team2Time  = parseFloat(document.getElementById('tourT2Time')?.value)  || 0;
+  const comp = allCompetitions.find(c => c._id === compId);
 
-  if (isNaN(team1Score) || isNaN(team2Score)) {
-    return showToast('กรุณากรอกคะแนนให้ครบทั้งสองทีม', 'error');
-  }
+  // คำนวณคะแนนจาก criteria แบบเดียวกับรอบคัดเลือก
+  const calcScore = (prefix) => {
+    if (!comp?.scoringCriteria?.length) return 0;
+    let total = 0;
+    comp.scoringCriteria.forEach(cr => {
+      const el = document.getElementById(`${prefix}_crit_${cr.key}`);
+      if (!el) return;
+      if (cr.type === 'boolean') {
+        if (el.checked) total += cr.isPenalty ? -cr.points : cr.points;
+      } else {
+        const val = parseFloat(el.value) || 0;
+        total += cr.isPenalty ? -(val * (cr.pointsPerUnit || cr.points)) : val * (cr.pointsPerUnit || cr.points);
+      }
+    });
+    return total;
+  };
+
+  const team1Score = calcScore('koT1');
+  const team1Time  = parseFloat(document.getElementById('tourT1Time')?.value)  || 0;
+  const team2Score = calcScore('koT2');
+  const team2Time  = parseFloat(document.getElementById('tourT2Time')?.value)  || 0;
 
   try {
     const res = await apiFetch(`/tour/${compId}/matches/${matchId}/game`, {
@@ -1803,24 +2003,59 @@ async function loadTourTable(compId) {
 
     const stageLabels = { quarterfinal: 'รอบ 8 ทีม', semifinal: 'รอบ 4 ทีม', final: 'รอบชิงชนะเลิศ' };
 
+    // รวบรวม ID ทีมที่อยู่ในรอบน็อคเอาท์แล้ว
+    const koStarted = groups.length > 0;
+    const koTeamIds = new Set();
+    groups.forEach(g => g.matches.forEach(m => {
+      if (m.team1?._id) koTeamIds.add(String(m.team1._id));
+      if (m.team2?._id) koTeamIds.add(String(m.team2._id));
+    }));
+
+    const medals = ['🥇','🥈','🥉'];
     const standHtml = `
-      <h4 style="margin-bottom:0.5rem">📊 รอบคัดเลือก (Top 8)</h4>
-      <div style="overflow-x:auto;margin-bottom:1.5rem">
-        <table class="table">
+      <h4 style="margin-bottom:0.75rem">📊 รอบคัดเลือก — เรียงลำดับตามคะแนน / เวลา</h4>
+      <div class="table-container" style="margin-bottom:1.5rem">
+        <table class="data-table">
           <thead><tr>
-            <th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th><th>รวมคะแนน</th><th>เวลาดีที่สุด</th><th>รอบที่เล่น</th>
+            <th style="width:60px;text-align:center">อันดับ</th>
+            <th>ทีม</th>
+            <th>โรงเรียน</th>
+            <th style="width:110px;text-align:center">คะแนนรวม</th>
+            <th style="width:130px;text-align:center">เวลาดีที่สุด (วิ)</th>
+            <th style="width:80px;text-align:center">รอบ</th>
+            <th style="width:160px;text-align:center">สถานะ</th>
           </tr></thead>
           <tbody>
-            ${standings.map((s,i) => `
-              <tr style="${i < 8 ? 'background:rgba(var(--accent-rgb,99,102,241),0.08)' : ''}">
-                <td style="text-align:center;font-weight:700">${s.rank}${i < 8 ? ' <span style="font-size:0.7rem;background:var(--accent);color:#fff;padding:0.1rem 0.35rem;border-radius:1rem">TOP8</span>' : ''}</td>
-                <td>#${s.team?.teamNumber} ${s.team?.teamName}</td>
-                <td>${s.team?.schoolName || '-'}</td>
-                <td style="font-weight:700;text-align:center">${s.totalScore}</td>
-                <td style="text-align:center">${s.bestTime ? s.bestTime.toFixed(2) + ' วิ' : '-'}</td>
-                <td style="text-align:center">${s.roundsPlayed}</td>
-              </tr>
-            `).join('')}
+            ${standings.map(s => {
+              const top8   = s.rank <= 8;
+              const rankCls = s.rank <= 3 ? s.rank : 'n';
+              const inKO   = koTeamIds.has(String(s.team?._id));
+              let statusBadge;
+              if (!koStarted) {
+                statusBadge = top8
+                  ? '<span class="badge-status badge-done">TOP 8</span>'
+                  : '<span class="badge-status badge-elim">สิ้นสุดการแข่งขัน</span>';
+              } else if (inKO) {
+                statusBadge = '<span class="badge-status badge-progress">⚔️ น็อคเอาท์</span>';
+              } else {
+                statusBadge = '<span class="badge-status badge-elim">สิ้นสุดการแข่งขัน</span>';
+              }
+              return `
+              <tr ${top8 && !koStarted ? 'style="background:rgba(46,204,113,0.05)"' : inKO ? 'style="background:rgba(243,156,18,0.05)"' : ''}>
+                <td style="text-align:center">
+                  <span class="rank-badge rank-${rankCls}">${s.rank <= 3 ? medals[s.rank-1] : s.rank}</span>
+                </td>
+                <td>
+                  <strong>${s.team?.teamName || '-'}</strong>
+                  <div style="font-size:0.72rem;color:var(--text-dim)">#${s.team?.teamNumber || ''}</div>
+                </td>
+                <td style="font-size:0.82rem">${s.team?.schoolName || '-'}</td>
+                <td style="text-align:center;font-weight:700;color:var(--accent);font-size:1.05rem">${s.totalScore}</td>
+                <td style="text-align:center;color:var(--text-muted)">${s.bestTime ? s.bestTime.toFixed(2) : '–'}</td>
+                <td style="text-align:center;color:var(--text-muted)">${s.roundsPlayed}</td>
+                <td style="text-align:center">${statusBadge}</td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>

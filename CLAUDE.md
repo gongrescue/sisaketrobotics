@@ -53,7 +53,7 @@ A single Node.js/Express container serves both the REST API (`/api/*`) and the s
 | Entry point | `server.js` | Mounts all routes, serves `frontend/` as static |
 | Config | `config/env.js` | Smart multi-file env loader (see below) |
 | Models | `models/` | Mongoose schemas: User, Competition, Team, Score, Match |
-| Routes | `routes/` | auth, competitions, teams, scores, rankings, matches |
+| Routes | `routes/` | auth, competitions, teams, scores, rankings, matches, tour |
 | Auth middleware | `middleware/auth.js` | JWT validation + role checks (admin/judge/viewer) |
 | Seed | `seed.js` | Idempotent — safe to re-run |
 
@@ -66,10 +66,12 @@ A single Node.js/Express container serves both the REST API (`/api/*`) and the s
 
 ### Data model relationships
 
-- **Competition**: 18 types with `scoringType` = `point` | `time` | `battle`; defines rounds, age groups, scoring criteria
+- **Competition**: 18 types with `scoringType` = `POINT` | `TIME` | `BATTLE`; `rankingMethod` = `SUM` | `BEST` | `LAST`; defines rounds, age groups, scoring criteria
 - **Team**: enrolled in one Competition; belongs to a school
-- **Score**: one record per Team × round; `details` field is flexible per `scoringType`
-- **Match**: used only for `battle`-type competitions (head-to-head); references two Teams
+- **Score**: one record per Team × round; `details` field is flexible per `scoringType`; `bonusScore` is added on top of `totalScore` in standings
+- **Match**: used for `BATTLE`-type and `tour` knockout stages (head-to-head, supports best-of-3 `games` array); references two Teams
+
+`tour` route (`/api/tour/:compId`) handles "เที่ยวเมืองศรีสะเกษ" competitions with a hybrid flow: qualifying rounds stored as Score records → top 8 advance to QF/SF/Final knockout bracket (admin triggers `POST /api/tour/:compId/generate` to create each stage).
 
 ### API access control
 
