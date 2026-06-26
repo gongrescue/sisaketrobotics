@@ -117,28 +117,69 @@ function renderLbTable(rankData, comp) {
   if (rankData.type === 'KNOCKOUT') {
     const stageLabel = { quarterfinal: 'รอบ 8 ทีม', semifinal: 'รอบ 4 ทีม', final: 'รอบชิงชนะเลิศ', third_place: 'ชิงอันดับ 3' };
     const medals = ['🥇','🥈','🥉'];
+    const KO_STAGES = ['quarterfinal', 'semifinal', 'final', 'third_place'];
+    // หา stages ที่มีข้อมูลจริง
+    const activeStages = KO_STAGES.filter(s => rankData.data.some(r => r.matchesByStage?.[s]));
+
+    // render ผลแต่ละเกมของ match
+    const renderGames = (mInfo) => {
+      if (!mInfo) return '<span style="color:var(--text-dim)">–</span>';
+      if (mInfo.notes === 'BYE') return '<span style="color:var(--success);font-size:0.78rem">BYE ✅</span>';
+      if (mInfo.status === 'scheduled') return '<span style="color:var(--text-dim);font-size:0.78rem">รอแข่ง</span>';
+
+      const { games, side, team1Wins, team2Wins, isBestOf3 } = mInfo;
+      const myWins  = side === 1 ? team1Wins : team2Wins;
+      const oppWins = side === 1 ? team2Wins : team1Wins;
+      const winStr  = isBestOf3 ? `<div style="font-size:0.72rem;font-weight:700;color:${myWins > oppWins ? 'var(--success)' : 'var(--danger)'}">${myWins > oppWins ? 'ชนะ' : 'แพ้'} ${myWins}–${oppWins}</div>` : '';
+      const gamesHtml = games.map(g => {
+        const myScore  = side === 1 ? g.team1Score : g.team2Score;
+        const oppScore = side === 1 ? g.team2Score : g.team1Score;
+        const won = myScore > oppScore || (myScore === oppScore && (side === 1 ? g.team1Time < g.team2Time : g.team2Time < g.team1Time));
+        return `<div style="font-size:0.75rem;white-space:nowrap">
+          เกม ${g.gameNumber}: <span style="font-weight:600;color:${won ? 'var(--success)' : 'var(--danger)'}">${myScore}</span><span style="color:var(--text-dim)"> vs ${oppScore}</span>
+        </div>`;
+      }).join('');
+      return winStr + gamesHtml;
+    };
+
     return `
+      <div class="table-container">
       <table class="data-table">
         <thead><tr>
-          <th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th><th>รอบที่ผ่าน</th>
+          <th>อันดับ</th>
+          <th>ทีม</th>
+          <th>โรงเรียน</th>
+          <th style="text-align:center">คัดเลือก<br><span style="font-size:0.7rem;font-weight:400">คะแนนรวม</span></th>
+          ${activeStages.map(s => `<th style="text-align:center">${stageLabel[s]}</th>`).join('')}
         </tr></thead>
         <tbody>
-          ${rankData.data.map(r => `
+          ${rankData.data.map(r => {
+            const rankNum = r.rank <= 99 ? r.rank : '–';
+            const rankCls = r.rank <= 3 ? r.rank : 'n';
+            const medal   = r.rank <= 3 ? medals[r.rank - 1] : rankNum;
+            const qual    = r.qual;
+            return `
             <tr>
-              <td>
-                <span class="rank-badge rank-${r.rank <= 3 ? r.rank : 'n'}">
-                  ${r.rank <= 3 ? medals[r.rank - 1] : r.rank}
-                </span>
+              <td style="text-align:center">
+                <span class="rank-badge rank-${rankCls}">${medal}</span>
               </td>
               <td>
                 <strong>${r.team?.teamName || '-'}</strong>
-                <div style="font-size:0.72rem;color:var(--text-dim)">${r.team?.teamNumber || ''}</div>
+                <div style="font-size:0.72rem;color:var(--text-dim)">#${r.team?.teamNumber || ''}</div>
               </td>
               <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
-              <td style="font-size:0.82rem;color:var(--text-muted)">${stageLabel[r.stage] || r.stage}</td>
-            </tr>`).join('')}
+              <td style="text-align:center">
+                ${qual
+                  ? `<div style="font-weight:700;color:var(--accent)">${qual.totalScore}</div>
+                     <div style="font-size:0.72rem;color:var(--text-muted)">${qual.roundsPlayed} รอบ</div>`
+                  : '<span style="color:var(--text-dim)">–</span>'}
+              </td>
+              ${activeStages.map(s => `<td style="vertical-align:top;padding:0.4rem 0.5rem">${renderGames(r.matchesByStage?.[s])}</td>`).join('')}
+            </tr>`;
+          }).join('')}
         </tbody>
-      </table>`;
+      </table>
+      </div>`;
   }
 
   // ─ Battle ─
