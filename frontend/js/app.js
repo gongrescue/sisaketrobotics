@@ -184,14 +184,16 @@ function updateNavForAuth(loggedIn) {
 
   if (loggedIn && currentUser) {
     // Admin-only tabs (ทีม / จัดการคะแนน / Battle / ผู้ใช้งาน): admin only
-    const teamsTabBtn      = document.getElementById('tabBtn-teams');
-    const scoreTableTabBtn = document.getElementById('tabBtn-scoreTable');
-    const matchesTabBtn    = document.getElementById('tabBtn-matches');
-    const usersTabBtn      = document.getElementById('tabBtn-users');
+    const teamsTabBtn       = document.getElementById('tabBtn-teams');
+    const scoreTableTabBtn  = document.getElementById('tabBtn-scoreTable');
+    const matchesTabBtn     = document.getElementById('tabBtn-matches');
+    const usersTabBtn       = document.getElementById('tabBtn-users');
+    const scoresheetTabBtn  = document.getElementById('tabBtn-scoresheet');
     if (teamsTabBtn)      teamsTabBtn.style.display      = admin ? '' : 'none';
     if (scoreTableTabBtn) scoreTableTabBtn.style.display = admin ? '' : 'none';
     if (matchesTabBtn)    matchesTabBtn.style.display    = admin ? '' : 'none';
     if (usersTabBtn)      usersTabBtn.style.display      = admin ? '' : 'none';
+    if (scoresheetTabBtn) scoresheetTabBtn.style.display = admin ? '' : 'none';
     const badge = document.getElementById('userBadge');
     if (badge) badge.textContent = `👤 ${currentUser.name} (${getRoleLabel(currentUser.role)})`;
 
@@ -488,7 +490,7 @@ function loadAdmin() {
 }
 
 // Tabs that admin-only users can access. Non-admin users are locked to 'scores'.
-const ADMIN_ONLY_TABS = ['teams', 'matches', 'users', 'scoreTable'];
+const ADMIN_ONLY_TABS = ['teams', 'matches', 'users', 'scoreTable', 'scoresheet'];
 
 const JUDGE_ALLOWED_TABS = ['scores'];
 
@@ -516,6 +518,7 @@ function switchAdminTabDirect(tab) {
   else if (tab === 'scoreTable') loadScoresTableInit();
   else if (tab === 'matches') loadMatchFilters();
   else if (tab === 'users') loadUsers();
+  else if (tab === 'scoresheet') loadScoresheetTab();
 }
 
 function switchAdminTab(tab) {
@@ -2053,6 +2056,227 @@ async function deleteUser(id, username) {
     loadUsers();
   } catch (err) {
     showToast(err.message, 'error');
+  }
+}
+
+// ─── SCORESHEET (แบบบันทึกคะแนน) ─────────────────────────────
+
+async function loadScoresheetTab() {
+  const sel = document.getElementById('scoresheetCompSelect');
+  if (!sel) return;
+  if (sel.options.length <= 1) {
+    try {
+      const res = await apiFetch('/competitions');
+      (res.data || []).forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c._id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    } catch (e) { showToast('โหลดรายการไม่สำเร็จ', 'error'); }
+  }
+  loadScoresheetPreview();
+}
+
+async function loadScoresheetPreview() {
+  const compId = document.getElementById('scoresheetCompSelect')?.value;
+  const info   = document.getElementById('scoresheetInfo');
+  const btn    = document.getElementById('scoresheetPrintBtn');
+  if (!compId) {
+    if (info) info.textContent = 'กรุณาเลือกรายการแข่งขัน';
+    if (btn)  btn.disabled = true;
+    return;
+  }
+  try {
+    const [compRes, teamsRes] = await Promise.all([
+      apiFetch(`/competitions/${compId}`),
+      apiFetch(`/teams?competition=${compId}&limit=200`)
+    ]);
+    const comp  = compRes.data;
+    const teams = teamsRes.data || [];
+    if (info) info.innerHTML = `<span style="color:var(--accent);font-weight:600">${comp.name}</span> — พบ <strong>${teams.length}</strong> ทีม (${teams.length} หน้า)`;
+    if (btn)  { btn.disabled = teams.length === 0; btn.dataset.compId = compId; }
+  } catch (e) {
+    if (info) info.textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + e.message;
+    if (btn)  btn.disabled = true;
+  }
+}
+
+async function printScoresheet() {
+  const compId = document.getElementById('scoresheetPrintBtn')?.dataset.compId;
+  if (!compId) return;
+  try {
+    const [compRes, teamsRes] = await Promise.all([
+      apiFetch(`/competitions/${compId}`),
+      apiFetch(`/teams?competition=${compId}&limit=200`)
+    ]);
+    const comp  = compRes.data;
+    const teams = (teamsRes.data || []).sort((a, b) => (a.teamNumber || '').localeCompare(b.teamNumber || ''));
+
+    const criteriaRows = comp.scoringCriteria?.map(cr => {
+      const hint = cr.remark
+        ? `<span style="font-size:9pt;color:#666"> (${cr.remark})</span>`
+        : cr.pointsPerUnit
+          ? `<span style="font-size:9pt;color:#666"> (${cr.pointsPerUnit} คะแนน/หน่วย)</span>`
+          : '';
+      return `<tr>
+        <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">${cr.label}${hint}${cr.isPenalty ? ' <b style="color:#c00">[หัก]</b>' : ''}</td>
+        <td style="border:1px solid #ccc;width:60px"></td>
+        <td style="border:1px solid #ccc;width:60px"></td>
+        <td style="border:1px solid #ccc;width:60px"></td>
+      </tr>`;
+    }).join('') || '';
+
+    const roundHeaders = Array.from({ length: comp.totalRounds || 3 }, (_, i) =>
+      `<th style="border:1px solid #ccc;padding:5px;text-align:center;width:60px;background:#f5f5f5">รอบ ${i + 1}</th>`
+    ).join('');
+
+    const pages = teams.map(team => `
+      <div class="page">
+        <div style="border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:10px">
+          <div style="font-size:9pt;color:#555;margin-bottom:2px">แบบบันทึกคะแนน — Sisaket Robotics 2026</div>
+          <div style="font-size:13pt;font-weight:700">${comp.name}</div>
+          <div style="font-size:9pt;color:#555;margin-top:2px">กลุ่มอายุ: ${comp.ageGroup || '-'} &nbsp;|&nbsp; จำนวนรอบ: ${comp.totalRounds} รอบ &nbsp;|&nbsp; เวลาต่อรอบ: ${comp.timePerRoundSeconds || 0} วินาที</div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>หมายเลขทีม</b></td>
+            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt;font-weight:700">${team.teamNumber || '-'}</td>
+            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>ชื่อทีม</b></td>
+            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt;font-weight:700">${team.teamName || '-'}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt"><b>โรงเรียน</b></td>
+            <td colspan="3" style="padding:4px 8px;border:1px solid #ccc;font-size:10pt">${team.schoolName || '-'}</td>
+          </tr>
+        </table>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+          <thead>
+            <tr>
+              <th style="border:1px solid #ccc;padding:6px 8px;text-align:left;background:#f5f5f5;font-size:10pt">เกณฑ์การให้คะแนน</th>
+              ${roundHeaders}
+            </tr>
+          </thead>
+          <tbody>
+            ${criteriaRows}
+            <tr style="background:#fffde7">
+              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt;font-weight:700">คะแนนรวม</td>
+              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
+            </tr>
+            <tr>
+              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">เวลาที่ใช้ (วินาที)</td>
+              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
+            </tr>
+            <tr>
+              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">คะแนนโบนัส</td>
+              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
+              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อกรรมการ</div>
+              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
+            </td>
+            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
+              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อตัวแทนทีม</div>
+              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
+            </td>
+          </tr>
+        </table>
+      </div>`).join('');
+
+    // หน้าสำรอง: ไม่ระบุชื่อทีม สำหรับทีมที่มาเพิ่ม
+    const blankPage = `
+      <div class="page">
+        <div style="border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:10px">
+          <div style="font-size:9pt;color:#555;margin-bottom:2px">แบบบันทึกคะแนน — Sisaket Robotics 2026</div>
+          <div style="font-size:13pt;font-weight:700">${comp.name}</div>
+          <div style="font-size:9pt;color:#555;margin-top:2px">กลุ่มอายุ: ${comp.ageGroup || '-'} &nbsp;|&nbsp; จำนวนรอบ: ${comp.totalRounds} รอบ &nbsp;|&nbsp; เวลาต่อรอบ: ${comp.timePerRoundSeconds || 0} วินาที</div>
+        </div>
+        <div style="text-align:center;font-size:9pt;color:#888;margin-bottom:8px;border:1px dashed #bbb;padding:4px;border-radius:4px">⚠️ หน้าสำรอง — สำหรับทีมที่ลงทะเบียนเพิ่มเติม</div>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>หมายเลขทีม</b></td>
+            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt"></td>
+            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>ชื่อทีม</b></td>
+            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt"></td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt"><b>โรงเรียน</b></td>
+            <td colspan="3" style="padding:4px 8px;border:1px solid #ccc;font-size:10pt"></td>
+          </tr>
+        </table>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+          <thead>
+            <tr>
+              <th style="border:1px solid #ccc;padding:6px 8px;text-align:left;background:#f5f5f5;font-size:10pt">เกณฑ์การให้คะแนน</th>
+              ${roundHeaders}
+            </tr>
+          </thead>
+          <tbody>
+            ${criteriaRows}
+            <tr style="background:#fffde7">
+              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt;font-weight:700">คะแนนรวม</td>
+              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
+            </tr>
+            <tr>
+              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">เวลาที่ใช้ (วินาที)</td>
+              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
+            </tr>
+            <tr>
+              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">คะแนนโบนัส</td>
+              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
+              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อกรรมการ</div>
+              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
+            </td>
+            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
+              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อตัวแทนทีม</div>
+              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
+            </td>
+          </tr>
+        </table>
+      </div>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>แบบบันทึกคะแนน — ${comp.name}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; background: #fff; color: #111; }
+  .page { width: 210mm; min-height: 270mm; padding: 12mm 14mm; page-break-after: always; }
+  .page:last-child { page-break-after: avoid; }
+  @media print {
+    body { margin: 0; }
+    .page { margin: 0; padding: 10mm 12mm; }
+    @page { size: A4; margin: 0; }
+  }
+</style>
+</head>
+<body>${pages}${blankPage}</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => win.print();
+  } catch (e) {
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
   }
 }
 

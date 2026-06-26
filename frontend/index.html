@@ -143,6 +143,7 @@
       <button class="tab-btn"        id="tabBtn-scoreTable" onclick="switchAdminTab('scoreTable')" style="display:none">📊 จัดการคะแนน</button>
       <button class="tab-btn"        id="tabBtn-matches"    onclick="switchAdminTab('matches')"    style="display:none">⚔️ Battle</button>
       <button class="tab-btn"        id="tabBtn-users"      onclick="switchAdminTab('users')"      style="display:none">👤 ผู้ใช้งาน</button>
+      <button class="tab-btn"        id="tabBtn-scoresheet" onclick="switchAdminTab('scoresheet')" style="display:none">🖨️ แบบบันทึก</button>
     </div>
 
     <!-- TEAMS TAB -->
@@ -286,6 +287,20 @@
         <button class="btn btn-primary btn-sm" onclick="showMatchModal()">+ เพิ่มคู่แข่ง</button>
       </div>
       <div id="matchesList"><p class="text-muted text-center p-4">เลือกประเภทการแข่งขัน Battle</p></div>
+    </div>
+
+    <!-- SCORESHEET TAB -->
+    <div id="adminTab-scoresheet" class="admin-tab-content">
+      <div class="admin-toolbar" style="flex-wrap:wrap;gap:0.75rem;align-items:flex-end">
+        <div style="flex:1;min-width:220px">
+          <label class="form-label" style="font-size:0.8rem;margin-bottom:4px">รายการแข่งขัน</label>
+          <select class="filter-select" id="scoresheetCompSelect" style="width:100%" onchange="loadScoresheetPreview()">
+            <option value="">-- เลือกรายการแข่งขัน --</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="printScoresheet()" id="scoresheetPrintBtn" disabled>🖨️ พิมพ์ / บันทึก PDF</button>
+      </div>
+      <div id="scoresheetInfo" style="margin-top:1rem;color:var(--text-muted);font-size:0.85rem;text-align:center"></div>
     </div>
 
     <!-- USERS TAB -->
