@@ -110,41 +110,90 @@ router.get('/:compId/rankings', async (req, res) => {
       return res.json({ success: true, type: 'QUALIFYING', data: standings });
     }
 
-    // สร้าง ranking จาก match results
-    const placed = new Map();
+    // ดึงคะแนนรอบคัดเลือกทุกทีม
+    const qualScores = await Score.find({ competition: compId, isValid: { $ne: false }, disqualified: { $ne: true } })
+      .populate('team', '_id teamNumber teamName schoolName');
+    const qualMap = {}; // teamId → { totalScore, bestTime, roundsPlayed }
+    qualScores.forEach(s => {
+      const tid = s.team?._id?.toString();
+      if (!tid) return;
+      if (!qualMap[tid]) qualMap[tid] = { totalScore: 0, bestTime: null, roundsPlayed: 0 };
+      qualMap[tid].totalScore  += (Number(s.totalScore) || 0) + (Number(s.bonusScore) || 0);
+      qualMap[tid].roundsPlayed += 1;
+      const t = Number(s.timeUsedSeconds);
+      if (t > 0 && (qualMap[tid].bestTime === null || t < qualMap[tid].bestTime)) qualMap[tid].bestTime = t;
+    });
+
+    // สร้าง ranking จาก match results + เก็บ match info ต่อทีม
+    const placed  = new Map(); // teamId → { rank, team, stage, matchesByStage }
     const byStage = {};
     matches.forEach(m => {
       if (!byStage[m.stage]) byStage[m.stage] = [];
       byStage[m.stage].push(m);
     });
 
+    // บันทึก match info ลงแต่ละทีมที่เกี่ยวข้อง
+    const teamMatchInfo = {}; // teamId → { [stage]: matchSummary }
+    matches.forEach(m => {
+      const t1id = m.team1?._id?.toString();
+      const t2id = m.team2?._id?.toString();
+      const summary = {
+        stage: m.stage,
+        status: m.status,
+        isBestOf3: m.isBestOf3,
+        games: m.games || [],
+        team1Wins: m.team1Wins || 0,
+        team2Wins: m.team2Wins || 0,
+        notes: m.notes || null
+      };
+      if (t1id) {
+        if (!teamMatchInfo[t1id]) teamMatchInfo[t1id] = {};
+        teamMatchInfo[t1id][m.stage] = { ...summary, side: 1, opponent: m.team2 };
+      }
+      if (t2id) {
+        if (!teamMatchInfo[t2id]) teamMatchInfo[t2id] = {};
+        teamMatchInfo[t2id][m.stage] = { ...summary, side: 2, opponent: m.team1 };
+      }
+    });
+
+    const setPlaced = (team, rank, stage) => {
+      const tid = team?._id?.toString();
+      if (!tid || placed.has(tid)) return;
+      placed.set(tid, { rank, team, stage, matchesByStage: teamMatchInfo[tid] || {}, qual: qualMap[tid] || null });
+    };
+
     const addLoser = (m, rank) => {
       const win = m.winner?._id?.toString();
       const t1  = m.team1?._id?.toString();
-      const loserId   = win === t1 ? m.team2?._id?.toString() : t1;
-      const loserTeam = win === t1 ? m.team2 : m.team1;
-      if (loserId && !placed.has(loserId)) placed.set(loserId, { rank, team: loserTeam, stage: m.stage });
+      const isT1winner = win === t1;
+      setPlaced(isT1winner ? m.team2 : m.team1, rank, m.stage);
     };
 
     (byStage['final'] || []).filter(m => m.status === 'completed').forEach(m => {
-      const win = m.winner?._id?.toString();
-      if (win && !placed.has(win)) placed.set(win, { rank: 1, team: m.winner, stage: 'final' });
+      setPlaced(m.winner, 1, 'final');
       addLoser(m, 2);
     });
 
-    // ชิงอันดับ 3: ผู้ชนะ = อันดับ 3, ผู้แพ้ = อันดับ 4
     (byStage['third_place'] || []).filter(m => m.status === 'completed').forEach(m => {
-      const win = m.winner?._id?.toString();
-      if (win && !placed.has(win)) placed.set(win, { rank: 3, team: m.winner, stage: 'third_place' });
+      setPlaced(m.winner, 3, 'third_place');
       addLoser(m, 4);
     });
 
-    // SF losers ที่ยังไม่ได้ถูกจัดอันดับ (กรณียังไม่มี third_place) → อันดับ 3+
     let sfRank = byStage['third_place']?.length ? 5 : 3;
     (byStage['semifinal'] || []).filter(m => m.status === 'completed').forEach(m => addLoser(m, sfRank++));
 
+    // ทีม QF ที่ตกรอบ
     let qfRank = sfRank;
     (byStage['quarterfinal'] || []).filter(m => m.status === 'completed').forEach(m => addLoser(m, qfRank++));
+
+    // ทีมที่ยังแข่งอยู่ (in_progress / scheduled) — ยังไม่มี rank
+    matches.forEach(m => {
+      if (m.status !== 'completed') {
+        [m.team1, m.team2].forEach(t => {
+          if (t) setPlaced(t, 99, m.stage);
+        });
+      }
+    });
 
     const rankings = [...placed.values()].sort((a, b) => a.rank - b.rank);
     res.json({ success: true, type: 'KNOCKOUT', data: rankings });
