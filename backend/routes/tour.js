@@ -1,14 +1,15 @@
 // routes/tour.js
-// ระบบจัดการการแข่งขัน "เที่ยวเมืองศรีสะเกษ"
-// รอบคัดเลือก (ใช้ Score model) → QF 8 ทีม → SF 4 ทีม → Final (best-of-3 ทุกรอบ)
+// ระบบจัดการการแข่งขัน "เที่ยวเมืองศรีสะเกษ" และ "หุ่นยนต์บังคับมือ กู้ภัยเมืองศรีสะเกษ"
+// รอบคัดเลือก (ใช้ Score model) → QF 8 ทีม → SF 4 ทีม → Final + ชิงอันดับ 3 (best-of-3)
 const router = require('express').Router();
-const Match  = require('../models/Match');
-const Score  = require('../models/Score');
-const Team   = require('../models/Team');
+const Match       = require('../models/Match');
+const Score       = require('../models/Score');
+const Team        = require('../models/Team');
+const Competition = require('../models/Competition');
 const { protect, judgeOrAdmin, adminOnly } = require('../middleware/auth');
 
-const STAGE_ORDER  = ['quarterfinal', 'semifinal', 'final'];
-const STAGE_LABELS = { quarterfinal: 'รอบ 8 ทีม', semifinal: 'รอบ 4 ทีม', final: 'รอบชิงชนะเลิศ' };
+const STAGE_ORDER  = ['quarterfinal', 'semifinal', 'final', 'third_place'];
+const STAGE_LABELS = { quarterfinal: 'รอบ 8 ทีม', semifinal: 'รอบ 4 ทีม', final: 'รอบชิงชนะเลิศ', third_place: 'ชิงอันดับ 3' };
 
 // ─── Helper: ตัดสินผู้ชนะ 1 เกม ────────────────────────────────
 // return 1 = team1, 2 = team2, 0 = ตัดสินไม่ได้
@@ -131,10 +132,18 @@ router.get('/:compId/rankings', async (req, res) => {
       addLoser(m, 2);
     });
 
-    let sfRank = 3;
+    // ชิงอันดับ 3: ผู้ชนะ = อันดับ 3, ผู้แพ้ = อันดับ 4
+    (byStage['third_place'] || []).filter(m => m.status === 'completed').forEach(m => {
+      const win = m.winner?._id?.toString();
+      if (win && !placed.has(win)) placed.set(win, { rank: 3, team: m.winner, stage: 'third_place' });
+      addLoser(m, 4);
+    });
+
+    // SF losers ที่ยังไม่ได้ถูกจัดอันดับ (กรณียังไม่มี third_place) → อันดับ 3+
+    let sfRank = byStage['third_place']?.length ? 5 : 3;
     (byStage['semifinal'] || []).filter(m => m.status === 'completed').forEach(m => addLoser(m, sfRank++));
 
-    let qfRank = 5;
+    let qfRank = sfRank;
     (byStage['quarterfinal'] || []).filter(m => m.status === 'completed').forEach(m => addLoser(m, qfRank++));
 
     const rankings = [...placed.values()].sort((a, b) => a.rank - b.rank);
@@ -144,106 +153,131 @@ router.get('/:compId/rankings', async (req, res) => {
   }
 });
 
-// ─── POST /:compId/generate ──────────────────────────────────────
-// สร้างรอบ knockout ถัดไป
-router.post('/:compId/generate', protect, adminOnly, async (req, res) => {
-  try {
-    const compId  = req.params.compId;
-    const existing = await Match.find({ competition: compId });
-    const byStage  = {};
-    existing.forEach(m => { if (!byStage[m.stage]) byStage[m.stage] = []; byStage[m.stage].push(m); });
+// ─── Helper: สร้างรอบถัดไป (Cross-Seeding) ──────────────────────
+// คืน { stage, label, data } หรือ null ถ้าไม่มีรอบถัดไป
+// ถ้า reason ไม่ผ่านเงื่อนไข ให้ throw Error
+async function generateNextRound(compId, isRescueM) {
+  const existing = await Match.find({ competition: compId });
+  const byStage  = {};
+  existing.forEach(m => { if (!byStage[m.stage]) byStage[m.stage] = []; byStage[m.stage].push(m); });
 
-    const qf = byStage['quarterfinal'] || [];
-    const sf = byStage['semifinal']    || [];
-    const fn = byStage['final']        || [];
+  const qf = byStage['quarterfinal'] || [];
+  const sf = byStage['semifinal']    || [];
+  const fn = byStage['final']        || [];
+  const tp = byStage['third_place']  || [];
+  const maxNum = existing.length > 0 ? Math.max(...existing.map(m => m.matchNumber || 0)) : 0;
 
-    let stage, orderedTeams;
-
-    if (qf.length === 0) {
-      // สร้าง QF จาก top standings
-      stage = 'quarterfinal';
-      const standings = await getQualStandings(compId, 8);
-      if (standings.length < 2) {
-        return res.status(400).json({ success: false, message: 'ต้องมีทีมที่บันทึกคะแนนแล้วอย่างน้อย 2 ทีม' });
-      }
-      orderedTeams = standings.map(s => s.team);
-
-    } else if (sf.length === 0) {
-      const incomplete = qf.filter(m => m.status !== 'completed' && m.notes !== 'BYE');
-      if (incomplete.length > 0) {
-        return res.status(400).json({ success: false, message: `รอบ QF ยังแข่งไม่ครบ (เหลือ ${incomplete.length} คู่)` });
-      }
-      stage = 'semifinal';
-      const sorted   = qf.sort((a, b) => a.matchNumber - b.matchNumber);
-      const winnerIds = sorted.map(m => m.winner?.toString()).filter(Boolean);
-      if (winnerIds.length < 2) {
-        return res.status(400).json({ success: false, message: 'ยังไม่มีผู้ชนะ QF ครบ' });
-      }
-      const teams   = await Team.find({ _id: { $in: winnerIds } }).select('_id teamNumber teamName schoolName');
-      const teamMap = Object.fromEntries(teams.map(t => [t._id.toString(), t]));
-      orderedTeams  = winnerIds.map(id => teamMap[id]).filter(Boolean);
-
-    } else if (fn.length === 0) {
-      const incomplete = sf.filter(m => m.status !== 'completed' && m.notes !== 'BYE');
-      if (incomplete.length > 0) {
-        return res.status(400).json({ success: false, message: `รอบ SF ยังแข่งไม่ครบ (เหลือ ${incomplete.length} คู่)` });
-      }
-      stage = 'final';
-      const sorted   = sf.sort((a, b) => a.matchNumber - b.matchNumber);
-      const winnerIds = sorted.map(m => m.winner?.toString()).filter(Boolean);
-      if (winnerIds.length < 2) {
-        return res.status(400).json({ success: false, message: 'ยังไม่มีผู้ชนะ SF ครบ' });
-      }
-      const teams   = await Team.find({ _id: { $in: winnerIds } }).select('_id teamNumber teamName schoolName');
-      const teamMap = Object.fromEntries(teams.map(t => [t._id.toString(), t]));
-      orderedTeams  = winnerIds.map(id => teamMap[id]).filter(Boolean);
-
-    } else {
-      return res.status(400).json({ success: false, message: 'การแข่งขันครบทุกรอบแล้ว' });
-    }
-
-    // จับคู่: อันดับ 1 vs อันดับ n, อันดับ 2 vs อันดับ n-1, ...
-    const n      = orderedTeams.length;
-    const maxNum = existing.length > 0 ? Math.max(...existing.map(m => m.matchNumber || 0)) : 0;
+  // ─ QF ─
+  if (qf.length === 0) {
+    const standings = await getQualStandings(compId, 8);
+    if (standings.length < 2) throw new Error('ต้องมีทีมที่บันทึกคะแนนแล้วอย่างน้อย 2 ทีม');
+    let orderedTeams = standings.map(s => s.team);
     const newMatches = [];
 
+    // ถ้าทีมคี่: อันดับ 1 ได้ BYE ผ่านรอบทันที แล้วจับคู่ที่เหลือ (จำนวนคู่)
+    if (isRescueM && orderedTeams.length % 2 === 1) {
+      const byeTeam = orderedTeams[0];
+      newMatches.push({
+        competition: compId, matchNumber: maxNum + 1, stage: 'quarterfinal',
+        team1: byeTeam._id, team2: null, winner: byeTeam._id,
+        isBestOf3: false, status: 'completed', notes: 'BYE'
+      });
+      orderedTeams = orderedTeams.slice(1); // เหลือทีมคู่สำหรับจับคู่ปกติ
+    }
+
+    const n = orderedTeams.length;
+    // Cross-Seeding: 1v(n), 2v(n-1), ... เช่น 1v8, 2v7, 3v6, 4v5
     for (let i = 0; i < Math.floor(n / 2); i++) {
       newMatches.push({
-        competition: compId,
-        matchNumber: maxNum + i + 1,
-        stage,
-        team1: orderedTeams[i]._id,
-        team2: orderedTeams[n - 1 - i]._id,
-        isBestOf3: true,
-        games: [],
-        team1Wins: 0,
-        team2Wins: 0,
-        status: 'scheduled'
+        competition: compId, matchNumber: maxNum + newMatches.length + 1, stage: 'quarterfinal',
+        team1: orderedTeams[i]._id, team2: orderedTeams[n - 1 - i]._id,
+        isBestOf3: !isRescueM, games: [], team1Wins: 0, team2Wins: 0, status: 'scheduled'
       });
     }
-    // ถ้าจำนวนคี่ → ทีมกลางได้ BYE
-    if (n % 2 === 1) {
-      const byeTeam = orderedTeams[Math.floor(n / 2)];
-      newMatches.push({
-        competition: compId,
-        matchNumber: maxNum + Math.floor(n / 2) + 1,
-        stage,
-        team1: byeTeam._id,
-        team2: null,
-        winner: byeTeam._id,
-        isBestOf3: false,
-        status: 'completed',
-        notes: 'BYE'
-      });
-    }
-
     await Match.insertMany(newMatches);
-    const created = await Match.find({ competition: compId, stage })
+    const created = await Match.find({ competition: compId, stage: 'quarterfinal' })
       .populate('team1 team2 winner', 'teamNumber teamName schoolName');
+    return { stage: 'quarterfinal', label: STAGE_LABELS['quarterfinal'], data: created };
+  }
 
-    res.json({ success: true, stage, label: STAGE_LABELS[stage], data: created });
+  // ─ SF (auto หลัง QF ครบ) ─
+  if (sf.length === 0) {
+    const allDone = qf.every(m => m.status === 'completed');
+    if (!allDone) return null; // ยังแข่งไม่ครบ → ไม่ generate
+    const sorted    = qf.sort((a, b) => a.matchNumber - b.matchNumber);
+    const winnerIds = sorted.map(m => m.winner?.toString()).filter(Boolean);
+    if (winnerIds.length < 2) return null;
+    const teams   = await Team.find({ _id: { $in: winnerIds } }).select('_id teamNumber teamName schoolName');
+    const teamMap = Object.fromEntries(teams.map(t => [t._id.toString(), t]));
+    const orderedTeams = winnerIds.map(id => teamMap[id]).filter(Boolean);
+    const n = orderedTeams.length;
+    const newMatches = [];
+    // Cross-Seeding SF: W(1v8) vs W(4v5), W(2v7) vs W(3v6)
+    for (let i = 0; i < Math.floor(n / 2); i++) {
+      newMatches.push({
+        competition: compId, matchNumber: maxNum + i + 1, stage: 'semifinal',
+        team1: orderedTeams[i]._id, team2: orderedTeams[n - 1 - i]._id,
+        isBestOf3: true, games: [], team1Wins: 0, team2Wins: 0, status: 'scheduled'
+      });
+    }
+    await Match.insertMany(newMatches);
+    const created = await Match.find({ competition: compId, stage: 'semifinal' })
+      .populate('team1 team2 winner', 'teamNumber teamName schoolName');
+    return { stage: 'semifinal', label: STAGE_LABELS['semifinal'], data: created };
+  }
+
+  // ─ Final + ชิงอันดับ 3 (auto หลัง SF ครบ) ─
+  if (fn.length === 0 && tp.length === 0) {
+    const allDone = sf.every(m => m.status === 'completed');
+    if (!allDone) return null;
+    const sorted    = sf.sort((a, b) => a.matchNumber - b.matchNumber);
+    const winnerIds = sorted.map(m => m.winner?.toString()).filter(Boolean);
+    const loserIds  = sorted.map(m => {
+      const wid = m.winner?.toString();
+      const t1  = m.team1?._id?.toString() || m.team1?.toString();
+      return wid === t1 ? (m.team2?._id?.toString() || m.team2?.toString()) : t1;
+    }).filter(Boolean);
+    if (winnerIds.length < 2) return null;
+
+    const allIds  = [...new Set([...winnerIds, ...loserIds])];
+    const teams   = await Team.find({ _id: { $in: allIds } }).select('_id teamNumber teamName schoolName');
+    const teamMap = Object.fromEntries(teams.map(t => [t._id.toString(), t]));
+
+    const finalTeams = winnerIds.map(id => teamMap[id]).filter(Boolean);
+    const thirdTeams = loserIds.map(id => teamMap[id]).filter(Boolean);
+
+    const newMatches = [{
+      competition: compId, matchNumber: maxNum + 1, stage: 'final',
+      team1: finalTeams[0]._id, team2: finalTeams[1]._id,
+      isBestOf3: true, games: [], team1Wins: 0, team2Wins: 0, status: 'scheduled'
+    }];
+    if (isRescueM && thirdTeams.length >= 2) {
+      newMatches.push({
+        competition: compId, matchNumber: maxNum + 2, stage: 'third_place',
+        team1: thirdTeams[0]._id, team2: thirdTeams[1]._id,
+        isBestOf3: true, games: [], team1Wins: 0, team2Wins: 0, status: 'scheduled'
+      });
+    }
+    await Match.insertMany(newMatches);
+    const created = await Match.find({ competition: compId, stage: { $in: ['final', 'third_place'] } })
+      .populate('team1 team2 winner', 'teamNumber teamName schoolName');
+    return { stage: 'final', label: 'รอบชิงชนะเลิศ + ชิงอันดับ 3', data: created };
+  }
+
+  return null; // ครบทุกรอบแล้ว
+}
+
+// ─── POST /:compId/generate ──────────────────────────────────────
+// สร้างรอบ knockout ถัดไป (ใช้ manual trigger สำหรับ QF; SF/Final/3rd auto)
+router.post('/:compId/generate', protect, adminOnly, async (req, res) => {
+  try {
+    const comp = await Competition.findById(req.params.compId);
+    if (!comp) return res.status(404).json({ success: false, message: 'ไม่พบประเภทการแข่งขัน' });
+    const result = await generateNextRound(req.params.compId, comp.code?.startsWith('RESCUE_M'));
+    if (!result) return res.status(400).json({ success: false, message: 'การแข่งขันครบทุกรอบแล้ว หรือยังแข่งรอบปัจจุบันไม่ครบ' });
+    res.json({ success: true, ...result });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.status || 500).json({ success: false, message: err.message });
   }
 });
 
@@ -266,8 +300,9 @@ router.post('/:compId/matches/:matchId/game', protect, judgeOrAdmin, async (req,
     }
 
     const gameNumber = (match.games?.length || 0) + 1;
-    if (gameNumber > 3) {
-      return res.status(400).json({ success: false, message: 'แข่งครบ 3 เกมแล้ว' });
+    const maxGames = match.isBestOf3 ? 3 : 1;
+    if (gameNumber > maxGames) {
+      return res.status(400).json({ success: false, message: `แข่งครบ ${maxGames} เกมแล้ว` });
     }
 
     const winIdx = resolveWinner(team1Score, team1Time, team2Score, team2Time);
@@ -291,8 +326,9 @@ router.post('/:compId/matches/:matchId/game', protect, judgeOrAdmin, async (req,
     if (winIdx === 1) match.team1Wins += 1;
     else              match.team2Wins += 1;
 
-    // จบ match เมื่อทีมใดทำ 2 wins ก่อน
-    if (match.team1Wins >= 2 || match.team2Wins >= 2) {
+    // single-game: จบทันทีหลัง 1 เกม; best-of-3: จบเมื่อทีมใดชนะ 2 เกม
+    const matchDone = !match.isBestOf3 || match.team1Wins >= 2 || match.team2Wins >= 2;
+    if (matchDone) {
       match.status      = 'completed';
       match.winner      = winIdx === 1 ? match.team1._id : match.team2._id;
       match.completedAt = new Date();
@@ -304,7 +340,24 @@ router.post('/:compId/matches/:matchId/game', protect, judgeOrAdmin, async (req,
 
     const updated = await Match.findById(matchId)
       .populate('team1 team2 winner', 'teamNumber teamName schoolName');
-    res.json({ success: true, data: updated, message: `บันทึกเกมที่ ${gameNumber} สำเร็จ` });
+
+    // auto Cross-Seeding: generate รอบถัดไปทันทีเมื่อ stage ปัจจุบันครบ
+    let autoGenerated = null;
+    if (matchDone && ['quarterfinal', 'semifinal'].includes(match.stage)) {
+      try {
+        const comp = await Competition.findById(compId);
+        if (comp?.code?.startsWith('RESCUE_M')) {
+          autoGenerated = await generateNextRound(compId, true);
+        }
+      } catch (_) { /* ถ้า generate ไม่ได้ ไม่ต้อง error */ }
+    }
+
+    res.json({
+      success: true,
+      data: updated,
+      message: `บันทึกเกมที่ ${gameNumber} สำเร็จ`,
+      autoGenerated: autoGenerated ? { stage: autoGenerated.stage, label: autoGenerated.label } : null
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -317,9 +370,13 @@ router.delete('/:compId/round/:stage', protect, adminOnly, async (req, res) => {
     if (!STAGE_ORDER.includes(stage)) {
       return res.status(400).json({ success: false, message: 'stage ไม่ถูกต้อง' });
     }
-    // ตรวจว่าไม่มี stage หลังค้างอยู่
+    // final กับ third_place generate พร้อมกัน → ลบพร้อมกันได้
+    const stagesToDelete = stage === 'final' ? ['final', 'third_place'] : [stage];
+    // ตรวจว่าไม่มี stage หลังค้างอยู่ (ยกเว้น third_place เมื่อลบ final)
     const stageIdx = STAGE_ORDER.indexOf(stage);
+    const ignoredForDelete = new Set(stage === 'final' ? ['final', 'third_place'] : []);
     for (let i = stageIdx + 1; i < STAGE_ORDER.length; i++) {
+      if (ignoredForDelete.has(STAGE_ORDER[i])) continue;
       const count = await Match.countDocuments({ competition: compId, stage: STAGE_ORDER[i] });
       if (count > 0) {
         return res.status(400).json({
@@ -328,7 +385,7 @@ router.delete('/:compId/round/:stage', protect, adminOnly, async (req, res) => {
         });
       }
     }
-    const result = await Match.deleteMany({ competition: compId, stage });
+    const result = await Match.deleteMany({ competition: compId, stage: { $in: stagesToDelete } });
     res.json({ success: true, message: `ลบ ${STAGE_LABELS[stage]} แล้ว`, deleted: result.deletedCount });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
