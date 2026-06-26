@@ -125,7 +125,6 @@ router.get('/:compId/rankings', async (req, res) => {
     });
 
     // สร้าง ranking จาก match results + เก็บ match info ต่อทีม
-    const placed  = new Map(); // teamId → { rank, team, stage, matchesByStage }
     const byStage = {};
     matches.forEach(m => {
       if (!byStage[m.stage]) byStage[m.stage] = [];
@@ -156,44 +155,72 @@ router.get('/:compId/rankings', async (req, res) => {
       }
     });
 
-    const setPlaced = (team, rank, stage) => {
+    // Helper: คำนวณคะแนนรวมทุกเกมของทีมใน stage นั้น (ใช้จัดอันดับ losers)
+    const getStageScore = (tid, stage) => {
+      const mInfo = teamMatchInfo[tid]?.[stage];
+      if (!mInfo || !mInfo.games?.length) return 0;
+      return mInfo.games.reduce((sum, g) => {
+        return sum + (mInfo.side === 1 ? (g.team1Score || 0) : (g.team2Score || 0));
+      }, 0);
+    };
+
+    const placed = new Map(); // teamId → entry
+    let nextRank  = 1;
+
+    const addEntry = (team, rank, stage) => {
       const tid = team?._id?.toString();
       if (!tid || placed.has(tid)) return;
       placed.set(tid, { rank, team, stage, matchesByStage: teamMatchInfo[tid] || {}, qual: qualMap[tid] || null });
     };
 
-    const addLoser = (m, rank) => {
-      const win = m.winner?._id?.toString();
-      const t1  = m.team1?._id?.toString();
-      const isT1winner = win === t1;
-      setPlaced(isT1winner ? m.team2 : m.team1, rank, m.stage);
+    // ── อันดับ 1–4: final + third_place (ลำดับคงที่) ──────────────
+    (byStage['final'] || []).filter(m => m.status === 'completed').forEach(m => {
+      addEntry(m.winner, 1, 'final');
+      const loser = m.winner?._id?.toString() === m.team1?._id?.toString() ? m.team2 : m.team1;
+      addEntry(loser, 2, 'final');
+    });
+    (byStage['third_place'] || []).filter(m => m.status === 'completed').forEach(m => {
+      addEntry(m.winner, 3, 'third_place');
+      const loser = m.winner?._id?.toString() === m.team1?._id?.toString() ? m.team2 : m.team1;
+      addEntry(loser, 4, 'third_place');
+    });
+    nextRank = placed.size + 1;
+
+    // ── Losers แต่ละ stage เรียงด้วย stageScore มากกว่า = rank ดีกว่า ──
+    const assignLosers = (stageMatches, stage) => {
+      const losers = [];
+      stageMatches.filter(m => m.status === 'completed').forEach(m => {
+        const win = m.winner?._id?.toString();
+        const t1  = m.team1?._id?.toString();
+        const loserTeam = win === t1 ? m.team2 : m.team1;
+        const loserId   = loserTeam?._id?.toString();
+        if (loserId && !placed.has(loserId)) {
+          losers.push({ team: loserTeam, score: getStageScore(loserId, stage) });
+        }
+      });
+      // เรียง: คะแนนมากกว่า = rank ดีกว่า
+      losers.sort((a, b) => b.score - a.score);
+      losers.forEach(({ team }) => { addEntry(team, nextRank++, stage); });
     };
 
-    (byStage['final'] || []).filter(m => m.status === 'completed').forEach(m => {
-      setPlaced(m.winner, 1, 'final');
-      addLoser(m, 2);
-    });
+    assignLosers(byStage['semifinal']   || [], 'semifinal');
+    assignLosers(byStage['quarterfinal'] || [], 'quarterfinal');
 
-    (byStage['third_place'] || []).filter(m => m.status === 'completed').forEach(m => {
-      setPlaced(m.winner, 3, 'third_place');
-      addLoser(m, 4);
-    });
-
-    let sfRank = byStage['third_place']?.length ? 5 : 3;
-    (byStage['semifinal'] || []).filter(m => m.status === 'completed').forEach(m => addLoser(m, sfRank++));
-
-    // ทีม QF ที่ตกรอบ
-    let qfRank = sfRank;
-    (byStage['quarterfinal'] || []).filter(m => m.status === 'completed').forEach(m => addLoser(m, qfRank++));
-
-    // ทีมที่ยังแข่งอยู่ (in_progress / scheduled) — ยังไม่มี rank
+    // ── ทีมที่ยังแข่งอยู่ เรียงด้วยคะแนนรอบคัดเลือก ──────────────
+    const stillPlaying = [];
     matches.forEach(m => {
       if (m.status !== 'completed') {
         [m.team1, m.team2].forEach(t => {
-          if (t) setPlaced(t, 99, m.stage);
+          const tid = t?._id?.toString();
+          if (tid && !placed.has(tid)) {
+            const alreadyIn = stillPlaying.find(x => x.team?._id?.toString() === tid);
+            if (!alreadyIn) stillPlaying.push({ team: t, stage: m.stage, qualScore: qualMap[tid]?.totalScore || 0 });
+          }
         });
       }
     });
+    stillPlaying.sort((a, b) => b.qualScore - a.qualScore);
+    stillPlaying.forEach(({ team, stage }) => addEntry(team, nextRank++, stage));
 
     const rankings = [...placed.values()].sort((a, b) => a.rank - b.rank);
     res.json({ success: true, type: 'KNOCKOUT', data: rankings });
