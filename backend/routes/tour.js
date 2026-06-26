@@ -188,8 +188,25 @@ router.get('/:compId/rankings', async (req, res) => {
     });
     nextRank = placed.size + 1;
 
-    // ── ทีมที่ยังแข่งอยู่ (ผ่านรอบ/รอแข่ง) → rank ก่อน losers เสมอ ──
-    // เรียง: stage สูงกว่าก่อน, คะแนนคัดเลือกมากกว่าก่อน
+    // ── Winners ที่ชนะ match แล้วแต่ยังไม่ถูก place ──────────────
+    // เกิดเมื่อทีมน้อย เช่น SF มีแค่ 1 match → ผู้ชนะไม่มี Final รอ
+    // ต้องมาก่อน stillPlaying และ losers เสมอ
+    const unplacedWinners = [];
+    ['final', 'semifinal', 'quarterfinal'].forEach(stage => {
+      (byStage[stage] || []).filter(m => m.status === 'completed' && m.winner).forEach(m => {
+        const tid = m.winner?._id?.toString();
+        if (tid && !placed.has(tid)) {
+          unplacedWinners.push({ team: m.winner, stage, qualScore: qualMap[tid]?.totalScore || 0 });
+        }
+      });
+    });
+    unplacedWinners.sort((a, b) => {
+      const stageDiff = (STAGE_IDX[b.stage] || 0) - (STAGE_IDX[a.stage] || 0);
+      return stageDiff !== 0 ? stageDiff : b.qualScore - a.qualScore;
+    });
+    unplacedWinners.forEach(({ team, stage }) => addEntry(team, nextRank++, stage));
+
+    // ── ทีมที่ยังแข่งอยู่ (รอแข่ง/กำลังแข่ง) → rank ก่อน losers ──
     const stillPlaying = [];
     matches.forEach(m => {
       if (m.status !== 'completed') {
@@ -226,24 +243,6 @@ router.get('/:compId/rankings', async (req, res) => {
 
     assignLosers(byStage['semifinal']   || [], 'semifinal');
     assignLosers(byStage['quarterfinal'] || [], 'quarterfinal');
-
-    // ── Winners ที่ชนะ match แล้วแต่ยังไม่ถูก place ──────────────
-    // เกิดขึ้นเมื่อทีมน้อย เช่น SF มี 1 match → ผู้ชนะไม่มี Final รอ
-    // เรียงด้วย stage สูงสุดก่อน แล้วด้วยคะแนนคัดเลือก
-    const unplacedWinners = [];
-    ['final', 'semifinal', 'quarterfinal'].forEach(stage => {
-      (byStage[stage] || []).filter(m => m.status === 'completed' && m.winner).forEach(m => {
-        const tid = m.winner?._id?.toString();
-        if (tid && !placed.has(tid)) {
-          unplacedWinners.push({ team: m.winner, stage, qualScore: qualMap[tid]?.totalScore || 0 });
-        }
-      });
-    });
-    unplacedWinners.sort((a, b) => {
-      const stageDiff = (STAGE_IDX[b.stage] || 0) - (STAGE_IDX[a.stage] || 0);
-      return stageDiff !== 0 ? stageDiff : b.qualScore - a.qualScore;
-    });
-    unplacedWinners.forEach(({ team, stage }) => addEntry(team, nextRank++, stage));
 
     const rankings = [...placed.values()].sort((a, b) => a.rank - b.rank);
     res.json({ success: true, type: 'KNOCKOUT', data: rankings });
