@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ตารางคะแนน Live — Sisaket Robotics 2026</title>
+<style>
+  :root {
+    --green:      #4ade80;
+    --green-light:#86efac;
+    --green-dim:  #16a34a;
+    --glass-bg:   rgba(255,255,255,0.10);
+    --glass-bg2:  rgba(255,255,255,0.06);
+    --glass-border: rgba(255,255,255,0.22);
+    --glass-shadow: 0 8px 32px rgba(0,0,0,0.28);
+    --text:       #f0fdf4;
+    --text2:      #bbf7d0;
+    --muted:      rgba(255,255,255,0.52);
+    --gold:       #fde047;
+    --silver:     #e2e8f0;
+    --bronze:     #fb923c;
+    --accent:     #4ade80;
+    --blur:       blur(18px) saturate(1.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    font-family: 'Segoe UI', 'Sarabun', sans-serif;
+  }
+
+  /* ── animated gradient bg ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 30%, #052e16 0%, transparent 60%),
+      radial-gradient(ellipse 70% 80% at 80% 70%, #14532d 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 50% 50%, #166534 0%, transparent 70%),
+      #0a1a0f;
+    animation: bgShift 12s ease-in-out infinite alternate;
+  }
+  @keyframes bgShift {
+    0%   { filter: hue-rotate(0deg) brightness(1); }
+    50%  { filter: hue-rotate(6deg) brightness(1.08); }
+    100% { filter: hue-rotate(-4deg) brightness(0.95); }
+  }
+
+
+  /* ── 9:16 canvas ── */
+  #canvas {
+    position: relative; z-index: 2;
+    width: calc(100vh * 9 / 16);
+    height: 100vh;
+    max-width: 100vw;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    font-size: calc(100vh * 9 / 16 * 0.032);
+  }
+  @media (max-aspect-ratio: 9/16) {
+    #canvas { width: 100vw; height: calc(100vw * 16 / 9); }
+  }
+
+  /* ════ LIQUID GLASS HELPERS ════ */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-dark {
+    background: var(--glass-bg2);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+
+  /* ── CONFIG PANEL ── */
+  #configPanel {
+    position: absolute; inset: 0; z-index: 100;
+    background: rgba(0,10,3,0.70);
+    backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center; padding: 1em;
+  }
+  #configPanel.hidden { display: none; }
+  .config-box {
+    background: rgba(255,255,255,0.10);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid rgba(74,222,128,0.35);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.18);
+    border-radius: 1em; padding: 1.5em; width: 100%; max-height: 92%; overflow-y: auto;
+  }
+  .config-title { font-size: 1.1em; font-weight: 700; color: var(--green); margin-bottom: 1em; }
+  .config-row { display: flex; gap: 0.75em; align-items: center; margin-bottom: 0.75em; }
+  .config-label { font-size: 0.82em; color: var(--text2); flex: 1; }
+  .config-input {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(74,222,128,0.4);
+    color: var(--text); border-radius: 0.4em; padding: 0.3em 0.6em; font-size: 0.9em; width: 5em;
+  }
+  .comp-list { display: flex; flex-direction: column; gap: 0.4em; max-height: 50vh; overflow-y: auto; padding-right: 4px; }
+  .comp-item {
+    display: flex; align-items: center; gap: 0.6em;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.5em; padding: 0.5em 0.75em; cursor: pointer; transition: all 0.2s;
+  }
+  .comp-item:hover { border-color: rgba(74,222,128,0.5); background: rgba(74,222,128,0.08); }
+  .comp-item.selected { border-color: rgba(74,222,128,0.7); background: rgba(74,222,128,0.12); }
+  .comp-item input[type=checkbox] { accent-color: var(--green); width: 1em; height: 1em; cursor: pointer; flex-shrink: 0; }
+  .comp-item-name { font-size: 0.8em; color: var(--text2); flex: 1; }
+  .btn-start {
+    margin-top: 1em; width: 100%; padding: 0.7em; border-radius: 0.5em;
+    background: linear-gradient(135deg, #16a34a, #4ade80);
+    color: #052e16; font-size: 0.95em; font-weight: 800;
+    border: none; cursor: pointer; transition: opacity 0.2s;
+    box-shadow: 0 4px 16px rgba(74,222,128,0.35);
+  }
+  .btn-start:hover { opacity: 0.88; }
+  .config-actions { display: flex; gap: 0.5em; margin: 0.4em 0; }
+  .btn-sel-all {
+    padding: 0.25em 0.6em; border-radius: 0.4em;
+    border: 1px solid rgba(74,222,128,0.35); background: transparent;
+    color: var(--text2); font-size: 0.76em; cursor: pointer;
+  }
+  .btn-sel-all:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── LIVE DISPLAY ── */
+  #liveDisplay { display: none; flex-direction: column; flex: 1; min-height: 0; }
+  #liveDisplay.visible { display: flex; }
+
+  /* header — glass card */
+  .live-header {
+    margin: 0.6em 0.6em 0;
+    border-radius: 0.85em 0.85em 0 0;
+    padding: 0.75em 1em;
+    background: rgba(255,255,255,0.09);
+    backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    border: 1px solid rgba(74,222,128,0.3);
+    border-bottom: none;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.16);
+    flex-shrink: 0;
+  }
+  .live-top-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4em; }
+  .live-event { font-size: 0.6em; color: var(--green-light); letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.8; }
+  .live-comp-name { font-size: 1em; font-weight: 800; color: var(--text); margin-top: 0.12em; line-height: 1.25; text-shadow: 0 1px 6px rgba(0,0,0,0.4); }
+  .live-meta { font-size: 0.68em; color: var(--text2); margin-top: 0.2em; opacity: 0.85; }
+
+  .live-indicator { display: flex; align-items: center; gap: 0.35em; flex-shrink: 0; }
+  .live-dot { width: 0.5em; height: 0.5em; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; animation: blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1;box-shadow:0 0 6px #4ade80} 50%{opacity:0.3;box-shadow:none} }
+  .live-label { font-size: 0.62em; color: var(--green); font-weight: 800; letter-spacing: 0.08em; }
+  .comp-chip {
+    display: inline-flex; gap: 0.3em; align-items: center;
+    background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.3);
+    border-radius: 1em; padding: 0.18em 0.55em; font-size: 0.62em; color: var(--green-light);
+  }
+  .chip-dot { width: 0.38em; height: 0.38em; border-radius: 50%; background: var(--green); }
+  .btn-cfg {
+    padding: 0.22em 0.55em; border-radius: 0.4em;
+    border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08);
+    color: var(--muted); font-size: 0.65em; cursor: pointer; transition: all 0.2s;
+    backdrop-filter: blur(8px);
+  }
+  .btn-cfg:hover { border-color: var(--green); color: var(--green); background: rgba(74,222,128,0.1); }
+
+  /* progress bar */
+  .progress-wrap {
+    margin: 0 0.6em;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, #16a34a, #4ade80, #86efac); width: 100%; transition: width linear; }
+
+  /* table glass card */
+  .table-wrap {
+    flex: 1; min-height: 0; overflow: hidden;
+    margin: 0 0.6em 0.6em;
+    padding: 0.5em 0.65em;
+    position: relative;
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid rgba(74,222,128,0.2);
+    border-top: none;
+    border-radius: 0 0 0.85em 0.85em;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25), inset 0 -1px 0 rgba(255,255,255,0.06);
+  }
+  .table-wrap::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url('/img/logo.png') center/55% no-repeat;
+    opacity: 0.10;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .table-wrap > * { position: relative; z-index: 1; }
+
+  .rank-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .rank-table th {
+    font-size: 0.62em; color: var(--green-light); text-transform: uppercase; letter-spacing: 0.06em;
+    border-bottom: 1px solid rgba(74,222,128,0.2); padding: 0.45em 0.5em;
+    text-align: left; font-weight: 600; opacity: 0.85;
+  }
+  .rank-table td {
+    padding: 0.52em 0.5em;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    vertical-align: middle;
+  }
+  .rank-table tr:last-child td { border-bottom: none; }
+  .rank-table tbody tr { transition: background 0.25s; }
+  .rank-table tbody tr:hover { background: rgba(74,222,128,0.06); }
+
+  .rank-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.7em; height: 1.7em; border-radius: 50%; font-weight: 700; font-size: 0.82em;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+    color: var(--muted);
+  }
+  .rank-1 { background: linear-gradient(135deg,#fbbf24,#fde047); color:#422006; border-color:#fde047; box-shadow:0 0 10px rgba(253,224,71,0.5); }
+  .rank-2 { background: linear-gradient(135deg,#94a3b8,#e2e8f0); color:#0f172a; border-color:#e2e8f0; }
+  .rank-3 { background: linear-gradient(135deg,#c2410c,#fb923c); color:#fff; border-color:#fb923c; }
+
+  .team-name { font-size: 0.86em; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .team-num  { font-size: 0.62em; color: var(--muted); }
+  .score-val { font-size: 1em; font-weight: 800; color: var(--green); text-shadow: 0 0 8px rgba(74,222,128,0.5); }
+  .time-val  { font-size: 0.7em; color: var(--text2); opacity: 0.8; }
+  .school    { font-size: 0.7em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .col-rank  { width: 2.4em; }
+  .col-team  { width: 36%; }
+  .col-school{ }
+  .col-score { width: 4.5em; text-align: right; }
+  .col-time  { width: 4em; text-align: right; }
+
+  /* row entrance */
+  .slide-in { animation: slideIn 0.38s cubic-bezier(.22,.68,0,1.2) forwards; }
+  @keyframes slideIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+
+  #loadingState { text-align: center; padding: 2em; color: var(--muted); font-size: 0.88em; }
+
+  /* scrollbar */
+  .comp-list::-webkit-scrollbar { width: 4px; }
+  .comp-list::-webkit-scrollbar-track { background: transparent; }
+  .comp-list::-webkit-scrollbar-thumb { background: rgba(74,222,128,0.3); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="canvas">
+
+  <!-- CONFIG PANEL -->
+  <div id="configPanel">
+    <div class="config-box">
+      <div class="config-title">⚙️ ตั้งค่า Live Score</div>
+      <div class="config-row">
+        <span class="config-label">เปลี่ยนรายการทุก (วินาที)</span>
+        <input class="config-input" type="number" id="cfgInterval" min="3" max="300" value="15">
+      </div>
+      <div style="font-size:0.8em;color:var(--text2);margin-bottom:0.4em;opacity:0.85">เลือกรายการแข่งขัน</div>
+      <div class="config-actions">
+        <button class="btn-sel-all" onclick="selectAll(true)">เลือกทั้งหมด</button>
+        <button class="btn-sel-all" onclick="selectAll(false)">ยกเลิกทั้งหมด</button>
+      </div>
+      <div class="comp-list" id="compList">
+        <div style="color:var(--muted);padding:1em;text-align:center">กำลังโหลด...</div>
+      </div>
+      <button class="btn-start" onclick="startLive()">▶ เริ่มแสดงผล Live</button>
+    </div>
+  </div>
+
+  <!-- LIVE DISPLAY -->
+  <div id="liveDisplay">
+
+    <div class="live-header">
+      <div class="live-top-row">
+        <div style="min-width:0;flex:1">
+          <div class="live-event">Sisaket Robotics 2026 — ตารางคะแนน</div>
+          <div class="live-comp-name" id="liveCompName">—</div>
+          <div class="live-meta" id="liveCompMeta"></div>
+        </div>
+        <div class="live-indicator">
+          <div class="live-dot"></div>
+          <span class="live-label">LIVE</span>
+          <div class="comp-chip"><span class="chip-dot"></span><span id="chipText">1/1</span></div>
+          <button class="btn-cfg" onclick="openConfig()">⚙️</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="table-wrap">
+      <div id="loadingState">กำลังโหลดข้อมูล...</div>
+      <table class="rank-table" id="rankTable" style="display:none">
+        <thead>
+          <tr>
+            <th class="col-rank">อันดับ</th>
+            <th class="col-team">ทีม</th>
+            <th class="col-school">โรงเรียน</th>
+            <th class="col-score" style="text-align:right">คะแนน</th>
+            <th class="col-time"  style="text-align:right">เวลา</th>
+          </tr>
+        </thead>
+        <tbody id="rankBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let allComps = [], selectedIds = [], currentIdx = 0;
+let intervalSec = 15, countdownTimer = null, secondsLeft = 0;
+
+async function fetchJSON(p) {
+  const r = await fetch(API + p);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function init() {
+  try {
+    const res = await fetchJSON('/competitions');
+    allComps = res.data || [];
+    renderCompList();
+  } catch(e) {
+    document.getElementById('compList').innerHTML =
+      '<div style="color:#f87171;padding:1em">โหลดไม่สำเร็จ: ' + e.message + '</div>';
+  }
+}
+
+function renderCompList() {
+  const list = document.getElementById('compList');
+  if (!allComps.length) { list.innerHTML = '<div style="color:var(--muted);padding:1em">ไม่มีรายการ</div>'; return; }
+  list.innerHTML = allComps.map((c, i) => `
+    <label class="comp-item" id="ci_${i}">
+      <input type="checkbox" value="${c._id}" checked onchange="updateSelected()">
+      <span class="comp-item-name">${c.name}</span>
+    </label>`).join('');
+  updateSelected();
+}
+
+function selectAll(val) {
+  document.querySelectorAll('#compList input[type=checkbox]').forEach(cb => cb.checked = val);
+  updateSelected();
+}
+
+function updateSelected() {
+  selectedIds = [...document.querySelectorAll('#compList input[type=checkbox]:checked')].map(cb => cb.value);
+  document.querySelectorAll('.comp-item').forEach(el =>
+    el.classList.toggle('selected', el.querySelector('input').checked));
+}
+
+function startLive() {
+  if (!selectedIds.length) { alert('กรุณาเลือกอย่างน้อย 1 รายการ'); return; }
+  intervalSec = Math.max(3, parseInt(document.getElementById('cfgInterval').value) || 15);
+  currentIdx = 0;
+  document.getElementById('configPanel').classList.add('hidden');
+  document.getElementById('liveDisplay').classList.add('visible');
+  showComp(0);
+}
+
+function openConfig() {
+  clearTimers();
+  document.getElementById('configPanel').classList.remove('hidden');
+}
+
+async function showComp(idx) {
+  clearTimers();
+  const compId = selectedIds[idx];
+  if (!compId) return;
+  const comp = allComps.find(c => c._id === compId);
+
+  document.getElementById('liveCompName').textContent = comp?.name || '—';
+  document.getElementById('liveCompMeta').textContent = comp
+    ? `กลุ่มอายุ: ${comp.ageGroup || '-'}  |  รอบ: ${comp.currentRound || 0}/${comp.totalRounds}`
+    : '';
+  document.getElementById('chipText').textContent = `${idx + 1}/${selectedIds.length}`;
+  document.getElementById('loadingState').style.display = '';
+  document.getElementById('rankTable').style.display = 'none';
+  document.getElementById('rankBody').innerHTML = '';
+
+  try {
+    const isTour = comp?.name?.includes('เที่ยวเมืองศรีสะเกษ') || comp?.code?.startsWith('RESCUE_M');
+    const res  = await fetchJSON(isTour ? `/tour/${compId}/rankings` : `/rankings/${compId}`);
+    const type = res.type || (comp?.scoringType === 'TIME' ? 'TIME' : 'POINT');
+    renderTable(res, comp, type);
+  } catch(e) {
+    document.getElementById('loadingState').textContent = 'โหลดไม่สำเร็จ: ' + e.message;
+  }
+
+  startProgress();
+}
+
+function renderTable(data, comp, type) {
+  const body = document.getElementById('rankBody');
+  const rows = data?.data?.slice(0, 10) || [];
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('rankTable').style.display = '';
+
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2em;color:var(--muted)">ยังไม่มีข้อมูลคะแนน</td></tr>`;
+    return;
+  }
+
+  const medals = ['🥇','🥈','🥉'];
+  body.innerHTML = rows.map((r, i) => {
+    const rank    = r.rank ?? (i + 1);
+    const medal   = rank <= 3 ? medals[rank - 1] : rank;
+    const rankCls = rank <= 3 ? 'rank-' + rank : '';
+    const team    = r.team || {};
+    let scoreHtml = '–', timeHtml = '–';
+
+    if (type === 'QUALIFYING' || type === 'POINT') {
+      const score = r.finalScore ?? r.totalScore ?? 0;
+      scoreHtml = `<span class="score-val">${score}</span>`;
+      const t = r.totalTime || r.bestTime;
+      if (t) timeHtml = `<span class="time-val">${t.toFixed(2)} วิ</span>`;
+    } else if (type === 'TIME') {
+      scoreHtml = r.taskCompleted
+        ? `<span class="score-val">${fmtSec(r.bestScore)}</span>`
+        : `<span style="color:var(--muted)">ไม่สำเร็จ</span>`;
+    } else if (type === 'KNOCKOUT') {
+      const sl = { quarterfinal:'รอบ 8 ทีม', semifinal:'รอบ 4 ทีม', final:'รอบชิงชนะเลิศ', third_place:'ชิงอันดับ 3' };
+      scoreHtml = `<span style="font-size:0.78em;color:var(--text2)">${sl[r.stage] || r.stage || '–'}</span>`;
+    }
+
+    return `<tr class="slide-in" style="animation-delay:${i * 40}ms">
+      <td class="col-rank"><span class="rank-badge ${rankCls}">${medal}</span></td>
+      <td class="col-team">
+        <div class="team-name">${team.teamName || '–'}</div>
+        <div class="team-num">#${team.teamNumber || ''}</div>
+      </td>
+      <td class="col-school"><span class="school">${team.schoolName || '–'}</span></td>
+      <td class="col-score" style="text-align:right">${scoreHtml}</td>
+      <td class="col-time"  style="text-align:right">${timeHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtSec(s) {
+  if (!s) return '–';
+  const m = Math.floor(s / 60), sec = (s % 60).toFixed(2);
+  return m > 0
+    ? `${m}:${String(Math.floor(sec)).padStart(2,'0')}.${sec.split('.')[1]}`
+    : `${parseFloat(sec).toFixed(2)} วิ`;
+}
+
+function startProgress() {
+  const bar = document.getElementById('progressBar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    bar.style.transition = `width ${intervalSec}s linear`;
+    bar.style.width = '0%';
+  }));
+  secondsLeft = intervalSec;
+  countdownTimer = setInterval(() => { if (--secondsLeft <= 0) nextComp(); }, 1000);
+}
+
+function nextComp() {
+  clearTimers();
+  currentIdx = (currentIdx + 1) % selectedIds.length;
+  showComp(currentIdx);
+}
+
+function clearTimers() { clearInterval(countdownTimer); countdownTimer = null; }
+
+init();
+</script>
+</body>
+</html>
