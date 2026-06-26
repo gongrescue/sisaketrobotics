@@ -1056,7 +1056,8 @@ async function onCompetitionChange() {
           ${cr.type === 'boolean'
             ? `<label><input type="checkbox" class="criteria-input" id="crit_${cr.key}" onchange="calcPreviewScore('${compId}')" style="width:auto"> ทำสำเร็จ</label>`
             : `<input type="number" class="form-input criteria-input" id="crit_${cr.key}" min="0" max="${cr.maxValue || 99}" value="0" onchange="calcPreviewScore('${compId}')" oninput="calcPreviewScore('${compId}')">
-               ${(comp.code?.startsWith('RESCUE_') || comp.code?.startsWith('DURIAN_') || comp.code?.startsWith('SORT_')) && cr.pointsPerUnit ? `<div style="font-size:0.72rem;color:var(--primary-light);margin-top:2px">💡 ${cr.pointsPerUnit} คะแนน / หน่วย</div>` : ''}`
+               ${(comp.code?.startsWith('RESCUE_') || comp.code?.startsWith('DURIAN_') || comp.code?.startsWith('SORT_')) && cr.pointsPerUnit ? `<div style="font-size:0.72rem;color:var(--primary-light);margin-top:2px">💡 ${cr.pointsPerUnit} คะแนน / หน่วย</div>` : ''}
+               ${cr.remark ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">📌 ${cr.remark}</div>` : ''}`
           }
         </div>`).join('')}`;
     document.getElementById('scorePreview').style.display = '';
