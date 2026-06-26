@@ -219,6 +219,10 @@
             <label class="form-label">⭐ คะแนนพิเศษ (Bonus)</label>
             <input type="number" class="form-input" id="scoreBonusScore" min="0" value="0" placeholder="0" oninput="calcPreviewScore(document.getElementById('scoreCompetition').value)">
           </div>
+          <div class="form-group" id="retriesField" style="display:none">
+            <label class="form-label">🔄 จำนวนครั้งที่ Retry</label>
+            <input type="number" class="form-input" id="scoreRetries" min="0" value="0" placeholder="0">
+          </div>
           <div class="form-group">
             <label class="form-label">หมายเหตุ</label>
             <input type="text" class="form-input" id="scoreNotes" placeholder="(ถ้ามี)">

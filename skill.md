@@ -75,6 +75,52 @@
 | `TIME` | เวลา (น้อยกว่า = ดีกว่า) | `BEST`, `LAST` |
 | `BATTLE` | ผล Match head-to-head | — (ใช้ Match model) |
 
+### คะแนน — หลักการสำคัญ
+
+- **บันทึกคะแนนดิบ** — `calculateScore()` ใน `backend/routes/scores.js` บวกค่า input โดยตรง ไม่คูณ `pointsPerUnit` / `points` สำหรับ `type: 'number'`
+- **Boolean criteria** — ยังคงให้คะแนนตามค่า `points` ที่กำหนดใน schema (ไม่ใช่การคูณ)
+- `bonusScore` บวกทับ `criteriaScore` ให้เป็น `totalScore` เสมอ
+
+### Tiebreaker ของการจัดอันดับ (POINT)
+
+| rankingMethod | Tiebreaker |
+|---|---|
+| `SUM` | `totalTime` — ผลรวมเวลาทุกรอบ (น้อยกว่า = ดีกว่า) |
+| `BEST` / `LAST` | `bestTime` — เวลาดีที่สุดรอบเดียว |
+
+### การแก้ไข scoringCriteria ใน DB
+
+ใช้ Mongoose โดยตรงผ่าน `node -e` เพื่อแก้ criteria ของ Competition เช่น เปลี่ยน field จาก `number` เป็น `boolean`:
+
+```js
+comp.scoringCriteria = [...newCriteria, ...comp.scoringCriteria.filter(c => c.key !== 'old_key')];
+await comp.save();
+```
+
+### MongoDB Local Dev (นอก Docker)
+
+- รัน MongoDB container แยก: `docker-compose up mongodb -d`
+- สร้าง `.env.development.local` ที่ root โปรเจกต์ (gitignored):
+  ```
+  MONGODB_URI=mongodb://localhost:27017/sisaket_robotics
+  ```
+- `config/env.js` โหลด `.env.development.local` ก่อน `.env.development` เสมอ
+
+### Frontend — โครงสร้างไฟล์ JS
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `frontend/js/app.js` | Core SPA — navigation, auth, competitions, teams, scores, admin, users |
+| `frontend/js/leaderboard.js` | ตารางคะแนน — `loadLeaderboard`, `renderLbTable`, `switchLbTab`, `loadLbForComp` |
+
+ไฟล์ใหม่ load ผ่าน `<script>` ใน `index.html` **ก่อน** `app.js` — ใช้ globals จาก `app.js` ได้โดยตรง (ไม่ต้อง import/export)
+
+### Modal System (Frontend)
+
+- `showModal(id)` — เปิด modal โดย add class `active` ให้ `#modalOverlay` และ `#<id>`
+- `closeModal()` — ลบ class `active` ออกจากทุก modal
+- ทุก Modal ต้องมี `id` ตรงกับที่ส่งให้ `showModal()` และอยู่ใน `index.html`
+
 ### CI/CD
 
 - Push ไป `main` → GitHub Actions deploy อัตโนมัติไปยัง DigitalOcean

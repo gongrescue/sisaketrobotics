@@ -115,7 +115,7 @@ function renderLbTable(rankData, comp) {
 
   // ─ Tour: รอบน็อคเอาท์ ─
   if (rankData.type === 'KNOCKOUT') {
-    const stageLabel = { quarterfinal: 'รอบ 8 ทีม', semifinal: 'รอบ 4 ทีม', final: 'รอบชิงชนะเลิศ' };
+    const stageLabel = { quarterfinal: 'รอบ 8 ทีม', semifinal: 'รอบ 4 ทีม', final: 'รอบชิงชนะเลิศ', third_place: 'ชิงอันดับ 3' };
     const medals = ['🥇','🥈','🥉'];
     return `
       <table class="data-table">
