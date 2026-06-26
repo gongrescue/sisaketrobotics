@@ -173,7 +173,9 @@ router.get('/:compId/rankings', async (req, res) => {
       placed.set(tid, { rank, team, stage, matchesByStage: teamMatchInfo[tid] || {}, qual: qualMap[tid] || null });
     };
 
-    // ── อันดับ 1–4: final + third_place (ลำดับคงที่) ──────────────
+    const STAGE_IDX = { quarterfinal: 0, semifinal: 1, final: 2, third_place: 2 };
+
+    // ── อันดับ 1–4: final + third_place ที่แข่งเสร็จแล้ว (ลำดับคงที่) ──
     (byStage['final'] || []).filter(m => m.status === 'completed').forEach(m => {
       addEntry(m.winner, 1, 'final');
       const loser = m.winner?._id?.toString() === m.team1?._id?.toString() ? m.team2 : m.team1;
@@ -185,6 +187,26 @@ router.get('/:compId/rankings', async (req, res) => {
       addEntry(loser, 4, 'third_place');
     });
     nextRank = placed.size + 1;
+
+    // ── ทีมที่ยังแข่งอยู่ (ผ่านรอบ/รอแข่ง) → rank ก่อน losers เสมอ ──
+    // เรียง: stage สูงกว่าก่อน, คะแนนคัดเลือกมากกว่าก่อน
+    const stillPlaying = [];
+    matches.forEach(m => {
+      if (m.status !== 'completed') {
+        [m.team1, m.team2].forEach(t => {
+          const tid = t?._id?.toString();
+          if (tid && !placed.has(tid)) {
+            const alreadyIn = stillPlaying.find(x => x.team?._id?.toString() === tid);
+            if (!alreadyIn) stillPlaying.push({ team: t, stage: m.stage, qualScore: qualMap[tid]?.totalScore || 0 });
+          }
+        });
+      }
+    });
+    stillPlaying.sort((a, b) => {
+      const stageDiff = (STAGE_IDX[b.stage] || 0) - (STAGE_IDX[a.stage] || 0);
+      return stageDiff !== 0 ? stageDiff : b.qualScore - a.qualScore;
+    });
+    stillPlaying.forEach(({ team, stage }) => addEntry(team, nextRank++, stage));
 
     // ── Losers แต่ละ stage เรียงด้วย stageScore มากกว่า = rank ดีกว่า ──
     const assignLosers = (stageMatches, stage) => {
@@ -198,29 +220,12 @@ router.get('/:compId/rankings', async (req, res) => {
           losers.push({ team: loserTeam, score: getStageScore(loserId, stage) });
         }
       });
-      // เรียง: คะแนนมากกว่า = rank ดีกว่า
       losers.sort((a, b) => b.score - a.score);
-      losers.forEach(({ team }) => { addEntry(team, nextRank++, stage); });
+      losers.forEach(({ team }) => addEntry(team, nextRank++, stage));
     };
 
     assignLosers(byStage['semifinal']   || [], 'semifinal');
     assignLosers(byStage['quarterfinal'] || [], 'quarterfinal');
-
-    // ── ทีมที่ยังแข่งอยู่ เรียงด้วยคะแนนรอบคัดเลือก ──────────────
-    const stillPlaying = [];
-    matches.forEach(m => {
-      if (m.status !== 'completed') {
-        [m.team1, m.team2].forEach(t => {
-          const tid = t?._id?.toString();
-          if (tid && !placed.has(tid)) {
-            const alreadyIn = stillPlaying.find(x => x.team?._id?.toString() === tid);
-            if (!alreadyIn) stillPlaying.push({ team: t, stage: m.stage, qualScore: qualMap[tid]?.totalScore || 0 });
-          }
-        });
-      }
-    });
-    stillPlaying.sort((a, b) => b.qualScore - a.qualScore);
-    stillPlaying.forEach(({ team, stage }) => addEntry(team, nextRank++, stage));
 
     const rankings = [...placed.values()].sort((a, b) => a.rank - b.rank);
     res.json({ success: true, type: 'KNOCKOUT', data: rankings });
