@@ -298,6 +298,45 @@
 <!-- ═══ MODALS ═══ -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
 
+<!-- User Modal -->
+<div class="modal" id="userModal">
+  <div class="modal-header">
+    <h3 id="userModalTitle">เพิ่มผู้ใช้งาน</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <input type="hidden" id="userId">
+    <div class="form-group">
+      <label class="form-label">Username *</label>
+      <input type="text" class="form-input" id="userUsername" placeholder="username" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่อ-นามสกุล *</label>
+      <input type="text" class="form-input" id="userName" placeholder="ชื่อผู้ใช้งาน" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รหัสผ่าน</label>
+      <input type="password" class="form-input" id="userPassword" placeholder="รหัสผ่าน *">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Role</label>
+      <select class="form-input" id="userRole">
+        <option value="judge">⚖️ กรรมการ</option>
+        <option value="admin">🛡️ แอดมิน</option>
+        <option value="viewer">👁️ ผู้ชม</option>
+      </select>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem">
+      <input type="checkbox" id="userIsActive" checked>
+      <label for="userIsActive" class="form-label" style="margin:0">เปิดใช้งาน</label>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveUser()">บันทึก</button>
+  </div>
+</div>
+
 <!-- Team Modal -->
 <div class="modal" id="teamModal">
   <div class="modal-header">
@@ -401,6 +440,7 @@
 <!-- Toast Notification -->
 <div id="toast" class="toast"></div>
 
+<script src="js/leaderboard.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

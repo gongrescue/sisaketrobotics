@@ -266,6 +266,9 @@ body {
 .form-input-sm { padding: 5px 8px !important; font-size: 0.82rem !important; min-width: 70px; }
 select.form-input { cursor: pointer; }
 input[type="checkbox"] { width: auto; margin-right: 6px; accent-color: var(--primary-light); }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
 
 /* ─── ALERTS ─── */
 .alert { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.85rem; margin: 8px 0; }

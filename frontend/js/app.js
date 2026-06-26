@@ -27,6 +27,16 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { t.classList.remove('show'); }, 3500);
 }
 
+function showModal(id) {
+  document.getElementById('modalOverlay')?.classList.add('active');
+  document.getElementById(id)?.classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay')?.classList.remove('active');
+  document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+}
+
 function showAlert(elId, msg, type = 'error') {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -445,9 +455,10 @@ function renderRankingTable(rankData, comp) {
         </tbody>
       </table>`;
   }
+  const isSum = comp.rankingMethod === 'SUM';
   return `
     <table class="data-table">
-      <thead><tr><th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th><th>คะแนนรวม</th><th>รอบที่แข่ง</th></tr></thead>
+      <thead><tr><th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th><th>คะแนนรวม</th><th>${isSum ? 'เวลารวม (วิ)' : 'รอบที่แข่ง'}</th></tr></thead>
       <tbody>
         ${rankData.data.map(r => `
           <tr>
@@ -455,217 +466,13 @@ function renderRankingTable(rankData, comp) {
             <td><strong>${r.team?.teamName || '-'}</strong><br><small style="color:var(--text-dim)">${r.team?.teamNumber}</small></td>
             <td style="font-size:0.8rem">${r.team?.schoolName || '-'}</td>
             <td style="color:var(--accent);font-weight:700;font-size:1.1rem">${r.finalScore ?? 0}</td>
-            <td style="color:var(--text-muted)">${r.roundsCompleted}/${comp.totalRounds}</td>
+            <td style="color:var(--text-muted)">${isSum ? (r.totalTime ? r.totalTime.toFixed(2) : '–') : `${r.roundsCompleted}/${comp.totalRounds}`}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────
-
-async function loadLeaderboard() {
-  try {
-    if (allCompetitions.length === 0) {
-      const res = await apiFetch('/competitions');
-      allCompetitions = res.data;
-    }
-    renderLbTabs(allCompetitions);
-    if (!currentLbCompId && allCompetitions.length) {
-      currentLbCompId = allCompetitions[0]._id;
-    }
-    if (currentLbCompId) await loadLbForComp(currentLbCompId);
-  } catch (err) {
-    document.getElementById('lbContent').innerHTML = `<p class="text-muted">ข้อผิดพลาด: ${err.message}</p>`;
-  }
-}
-
-function renderLbTabs(comps) {
-  const tabs = document.getElementById('lbTabs');
-  const options = comps.map(c => `
-    <option value="${c._id}" ${c._id === currentLbCompId ? 'selected' : ''}>
-      ${c.name}
-    </option>`).join('');
-  tabs.innerHTML = `
-    <select class="form-input" style="width: 100%; max-width: 500px; margin-bottom: 1rem; font-size: 1rem;" onchange="switchLbTab(this.value)">
-      ${options}
-    </select>`;
-}
-
-async function switchLbTab(compId) {
-  currentLbCompId = compId;
-  await loadLbForComp(compId);
-}
-
-async function loadLbForComp(compId) {
-  const content = document.getElementById('lbContent');
-  content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
-  try {
-    const compRes = await apiFetch(`/competitions/${compId}`);
-    const comp = compRes.data;
-    const rankRes = isTourComp(comp)
-      ? await apiFetch(`/tour/${compId}/rankings`)
-      : await apiFetch(`/rankings/${compId}`);
-    const rankData = rankRes;
-
-    const icon = getCategoryIcon(comp.category);
-    content.innerHTML = `
-      <div class="leaderboard-table-wrapper">
-        <div class="lb-comp-header">
-          <span style="font-size:1.5rem">${icon}</span>
-          <div>
-            <div class="lb-comp-name">${comp.name}</div>
-            <div style="font-size:0.75rem;color:var(--text-muted)">${comp.description || ''}</div>
-          </div>
-          <div class="lb-comp-round">รอบที่ ${comp.currentRound || '-'} / ${comp.totalRounds}</div>
-        </div>
-        ${renderLbTable(rankData, comp)}
-      </div>`;
-  } catch (err) {
-    content.innerHTML = `<p class="text-muted p-4">เกิดข้อผิดพลาด: ${err.message}</p>`;
-  }
-}
-
-function renderLbTable(rankData, comp) {
-  if (!rankData?.data?.length) {
-    return '<div class="empty-state"><div class="empty-state-icon">🏆</div><p>ยังไม่มีข้อมูลคะแนน</p><p style="font-size:0.8rem;color:var(--text-dim)">กรรมการสามารถเริ่มบันทึกคะแนนได้ในแผงจัดการ</p></div>';
-  }
-  // ─ Tour: รอบคัดเลือก ─
-  if (rankData.type === 'QUALIFYING') {
-    return `
-      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;text-align:center">
-        📋 รอบคัดเลือก — 8 อันดับแรกผ่านสู่รอบน็อคเอาท์
-      </div>
-      <div class="table-container">
-      <table class="data-table">
-        <thead><tr>
-          <th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th>
-          <th style="text-align:center">คะแนนรวม</th>
-          <th style="text-align:center">เวลาดีสุด (วิ)</th>
-          <th style="text-align:center">รอบ</th>
-          <th style="text-align:center">สถานะ</th>
-        </tr></thead>
-        <tbody>
-          ${rankData.data.map(r => {
-            const top8 = r.rank <= 8;
-            const rankCls = r.rank <= 3 ? r.rank : 'n';
-            const medals  = ['🥇','🥈','🥉'];
-            const statusBadge = top8
-              ? '<span class="badge-status badge-done">TOP 8</span>'
-              : '<span class="badge-status badge-elim">สิ้นสุดการแข่งขัน</span>';
-            return `
-            <tr ${top8 ? 'style="background:rgba(46,204,113,0.05)"' : ''}>
-              <td style="text-align:center">
-                <span class="rank-badge rank-${rankCls}">${r.rank <= 3 ? medals[r.rank-1] : r.rank}</span>
-              </td>
-              <td>
-                <strong>${r.team?.teamName || '-'}</strong>
-                <div style="font-size:0.72rem;color:var(--text-dim)">#${r.team?.teamNumber || ''}</div>
-              </td>
-              <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
-              <td style="text-align:center;font-weight:700;color:var(--accent);font-size:1.1rem">${r.totalScore}</td>
-              <td style="text-align:center;color:var(--text-muted)">${r.bestTime ? r.bestTime.toFixed(2) : '–'}</td>
-              <td style="text-align:center;color:var(--text-muted)">${r.roundsPlayed}</td>
-              <td style="text-align:center">${statusBadge}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-      </div>`;
-  }
-  // ─ Tour: รอบน็อคเอาท์ ─
-  if (rankData.type === 'KNOCKOUT') {
-    const stageLabel = { quarterfinal: 'รอบ 8 ทีม', semifinal: 'รอบ 4 ทีม', final: 'รอบชิงชนะเลิศ' };
-    const medals = ['🥇','🥈','🥉'];
-    return `
-      <table class="data-table">
-        <thead><tr>
-          <th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th><th>รอบที่ผ่าน</th>
-        </tr></thead>
-        <tbody>
-          ${rankData.data.map(r => `
-            <tr>
-              <td>
-                <span class="rank-badge rank-${r.rank <= 3 ? r.rank : 'n'}">
-                  ${r.rank <= 3 ? medals[r.rank - 1] : r.rank}
-                </span>
-              </td>
-              <td>
-                <strong>${r.team?.teamName || '-'}</strong>
-                <div style="font-size:0.72rem;color:var(--text-dim)">${r.team?.teamNumber || ''}</div>
-              </td>
-              <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
-              <td style="font-size:0.82rem;color:var(--text-muted)">${stageLabel[r.stage] || r.stage}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
-  }
-  if (rankData.type === 'BATTLE') {
-    const stages = {};
-    rankData.data.forEach(m => { if (!stages[m.stage]) stages[m.stage] = []; stages[m.stage].push(m); });
-    return Object.entries(stages).map(([stage, matches]) => `
-      <div class="bracket-stage">
-        <div class="bracket-stage-title">${{'preliminary':'รอบแรก','quarterfinal':'รอบก่อนรองชนะเลิศ','semifinal':'รอบรองชนะเลิศ','final':'รอบชิงชนะเลิศ','third_place':'ชิงอันดับ 3'}[stage] || stage}</div>
-        ${matches.map(m => `
-          <div class="match-card">
-            <div class="match-team ${m.winner?._id === m.team1?._id ? 'match-winner' : ''}">
-              <div class="match-team-name">${m.team1?.teamName || 'TBD'}</div>
-              <div class="match-team-school">${m.team1?.schoolName || ''}</div>
-            </div>
-            <div style="text-align:center">
-              <div class="match-score">${m.team1Score} <span class="match-vs">VS</span> ${m.team2Score}</div>
-              <div style="font-size:0.7rem;color:var(--text-dim)">คู่ที่ ${m.matchNumber}</div>
-            </div>
-            <div class="match-team ${m.winner?._id === m.team2?._id ? 'match-winner' : ''}" style="text-align:right">
-              <div class="match-team-name">${m.team2?.teamName || 'TBD'}</div>
-              <div class="match-team-school">${m.team2?.schoolName || ''}</div>
-            </div>
-          </div>`).join('')}
-      </div>`).join('');
-  }
-  if (rankData.type === 'TIME') {
-    return `
-      <table class="data-table">
-        <thead><tr><th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th><th>เวลาดีสุด</th><th>สำเร็จ</th><th>รอบ</th></tr></thead>
-        <tbody>
-          ${rankData.data.map((r, i) => `
-            <tr>
-              <td><span class="rank-badge rank-${i < 3 ? i+1 : 'n'}">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</span></td>
-              <td><strong>${r.team?.teamName || '-'}</strong><div style="font-size:0.75rem;color:var(--text-dim)">${r.team?.teamNumber || ''}</div></td>
-              <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
-              <td style="font-weight:700;color:var(--accent)">${r.taskCompleted ? formatSeconds(r.bestScore) : '–'}</td>
-              <td>${r.taskCompleted ? '✅' : `❌ ${r.distanceCm || 0}cm`}</td>
-              <td style="color:var(--text-muted)">${r.roundsCompleted}/${comp.totalRounds}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
-  }
-  return `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>อันดับ</th><th>ทีม</th><th>โรงเรียน</th>
-          <th>คะแนนรวม</th>
-          ${comp.totalRounds > 1 ? '<th>รอบ1</th><th>รอบ2</th><th>รอบ3</th>' : ''}
-          <th>เวลาดีสุด</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rankData.data.map((r, i) => {
-          const rScores = r.scores?.sort((a,b) => a.round - b.round) || [];
-          const s = [1,2,3].map(n => rScores.find(s => s.round === n)?.totalScore ?? '–');
-          return `
-            <tr>
-              <td><span class="rank-badge rank-${i < 3 ? i+1 : 'n'}">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</span></td>
-              <td><strong>${r.team?.teamName || '-'}</strong><div style="font-size:0.75rem;color:var(--text-dim)">${r.team?.teamNumber || ''}</div></td>
-              <td style="font-size:0.82rem">${r.team?.schoolName || '-'}</td>
-              <td style="font-weight:700;font-size:1.2rem;color:var(--accent)">${r.finalScore ?? 0}</td>
-              ${comp.totalRounds > 1 ? `<td>${s[0]}</td><td>${s[1]}</td><td>${s[2]}</td>` : ''}
-              <td style="color:var(--text-muted);font-size:0.8rem">${formatSeconds(r.bestTime)}</td>
-            </tr>`;
-        }).join('')}
-      </tbody>
-    </table>`;
-}
 
 // ─── ADMIN ────────────────────────────────────────────────────
 
@@ -1240,7 +1047,7 @@ async function onCompetitionChange() {
       <div style="margin-bottom:0.5rem;font-size:0.8rem;color:var(--text-muted);font-weight:600">รายละเอียดคะแนน</div>
       ${comp.scoringCriteria.map(cr => `
         <div class="criteria-field">
-          <div class="criteria-label">${cr.label} ${cr.isPenalty ? '(หักคะแนน)' : ''} ${cr.pointsPerUnit ? `(×${cr.pointsPerUnit} คะแนน)` : `(${cr.points} คะแนน)`}</div>
+          <div class="criteria-label">${cr.label} ${cr.isPenalty ? '(หักคะแนน)' : ''}</div>
           ${cr.type === 'boolean'
             ? `<label><input type="checkbox" class="criteria-input" id="crit_${cr.key}" onchange="calcPreviewScore('${compId}')" style="width:auto"> ทำสำเร็จ</label>`
             : `<input type="number" class="form-input criteria-input" id="crit_${cr.key}" min="0" max="${cr.maxValue || 99}" value="0" onchange="calcPreviewScore('${compId}')" oninput="calcPreviewScore('${compId}')">`
@@ -1273,8 +1080,7 @@ function calcPreviewScore(compId) {
       if (el.checked) total += cr.isPenalty ? -cr.points : cr.points;
     } else {
       const val = parseFloat(el.value) || 0;
-      const pts = val * (cr.pointsPerUnit || cr.points);
-      total += cr.isPenalty ? -pts : pts;
+      total += cr.isPenalty ? -val : val;
     }
   });
   const bonus = parseFloat(document.getElementById('scoreBonusScore')?.value) || 0;
@@ -2139,6 +1945,99 @@ async function deleteTourRound(compId, stage) {
     const res = await apiFetch(`/tour/${compId}/round/${stage}`, { method: 'DELETE' });
     showToast(res.message, 'success');
     loadScoresTable();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── USERS ADMIN ──────────────────────────────────────────────
+
+async function loadUsers() {
+  const container = document.getElementById('usersList');
+  try {
+    const res = await apiFetch('/auth/users');
+    if (!res.data.length) {
+      container.innerHTML = '<p class="text-muted text-center p-4">ยังไม่มีผู้ใช้งาน</p>';
+      return;
+    }
+    const roleLabel = r => r === 'admin' ? '🛡️ แอดมิน' : r === 'judge' ? '⚖️ กรรมการ' : '👁️ ผู้ชม';
+    container.innerHTML = `
+      <table class="table">
+        <thead><tr><th>#</th><th>Username</th><th>ชื่อ</th><th>Role</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+        <tbody>
+          ${res.data.map((u, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td><strong>${u.username}</strong></td>
+              <td>${u.name}</td>
+              <td>${roleLabel(u.role)}</td>
+              <td><span class="tag ${u.isActive ? 'tag-auto' : 'tag-age'}" style="font-size:0.7rem">${u.isActive ? '✅ ใช้งาน' : '🚫 ระงับ'}</span></td>
+              <td>
+                <button class="btn btn-sm btn-outline btn-icon" onclick="editUser('${u._id}')" title="แก้ไข">✏️</button>
+                <button class="btn btn-sm btn-outline btn-icon" onclick="deleteUser('${u._id}','${u.username}')" title="ลบ" style="color:var(--danger)">🗑️</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-error">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`;
+  }
+}
+
+function showUserModal(user = null) {
+  document.getElementById('userModalTitle').textContent = user ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งาน';
+  document.getElementById('userId').value = user?._id || '';
+  document.getElementById('userUsername').value = user?.username || '';
+  document.getElementById('userName').value = user?.name || '';
+  document.getElementById('userRole').value = user?.role || 'judge';
+  document.getElementById('userPassword').value = '';
+  document.getElementById('userPassword').placeholder = user ? 'เว้นว่างถ้าไม่เปลี่ยน' : 'รหัสผ่าน *';
+  document.getElementById('userIsActive').checked = user ? user.isActive : true;
+  showModal('userModal');
+}
+
+async function editUser(id) {
+  try {
+    const res = await apiFetch(`/auth/users/${id}`);
+    showUserModal(res.data);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function saveUser() {
+  const id = document.getElementById('userId').value;
+  const body = {
+    username: document.getElementById('userUsername').value.trim(),
+    name: document.getElementById('userName').value.trim(),
+    role: document.getElementById('userRole').value,
+    isActive: document.getElementById('userIsActive').checked,
+  };
+  const pw = document.getElementById('userPassword').value;
+  if (pw) body.password = pw;
+
+  try {
+    if (id) {
+      await apiFetch(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      showToast('อัปเดตผู้ใช้งานสำเร็จ', 'success');
+    } else {
+      if (!pw) { showToast('กรุณากรอกรหัสผ่าน', 'error'); return; }
+      await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(body) });
+      showToast('เพิ่มผู้ใช้งานสำเร็จ', 'success');
+    }
+    closeModal();
+    loadUsers();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`ยืนยันการลบผู้ใช้งาน "${username}"?`)) return;
+  try {
+    await apiFetch(`/auth/users/${id}`, { method: 'DELETE' });
+    showToast('ลบผู้ใช้งานสำเร็จ', 'success');
+    loadUsers();
   } catch (err) {
     showToast(err.message, 'error');
   }

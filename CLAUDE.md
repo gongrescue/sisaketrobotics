@@ -81,7 +81,11 @@ A single Node.js/Express container serves both the REST API (`/api/*`) and the s
 
 ### Frontend (`frontend/`)
 
-Vanilla JavaScript SPA — no framework, no bundler. All logic lives in `frontend/js/app.js` (~90 KB). The single `index.html` contains embedded HTML templates rendered by JS. The frontend communicates with the backend exclusively via the Fetch API against `/api/*`.
+Vanilla JavaScript SPA — no framework, no bundler. All logic lives in `frontend/js/app.js` (~2150 lines). The single `index.html` contains embedded HTML templates rendered by JS. The frontend communicates with the backend exclusively via the Fetch API via `apiFetch()` against `/api/*`.
+
+Navigation is handled by `navigate(page, data)` which shows/hides `<div id="page-{page}">` elements and calls the corresponding `load*()` function. Pages: `home`, `competitions`, `comp-detail`, `leaderboard`, `admin`, `login`. Role-based routing is enforced in `navigate()` — judges and restricted users are redirected to `admin`.
+
+`frontend/src/` exists but is empty scaffolding — all active code is in `frontend/js/app.js`.
 
 ## Default seed users
 
@@ -99,5 +103,6 @@ Vanilla JavaScript SPA — no framework, no bundler. All logic lives in `fronten
 | `JWT_SECRET` | JWT signing secret |
 | `PORT` | HTTP port (default 5000) |
 | `NODE_ENV` | `development` or `production` |
+| `FRONTEND_URL` | CORS allowed origin (e.g. `http://localhost:3000` in dev) |
 
 Production secrets are injected via the DigitalOcean App Platform dashboard (never committed).
