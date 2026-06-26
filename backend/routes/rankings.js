@@ -54,11 +54,12 @@ const computeRankings = async (competition, teams) => {
       const sumScore = roundScores.reduce((a, b) => a + b, 0);
       const bestRound = roundScores.length > 0 ? Math.max(...roundScores) : 0;
       const lastRound = scores.length > 0 ? scores.sort((a, b) => a.round - b.round).slice(-1)[0].totalScore : 0;
-      const bestTimes = scores.map(s => s.timeUsedSeconds).filter(t => t > 0);
-      const bestTime = bestTimes.length > 0 ? Math.min(...bestTimes) : Infinity;
+      const times = scores.map(s => s.timeUsedSeconds).filter(t => t > 0);
+      const bestTime = times.length > 0 ? Math.min(...times) : Infinity;
+      const totalTime = times.reduce((a, b) => a + b, 0);
       const finalScore = competition.rankingMethod === 'BEST' ? bestRound :
                          competition.rankingMethod === 'LAST' ? lastRound : sumScore;
-      return { team, finalScore, sumScore, bestRound, lastRound, bestTime, roundsCompleted: scores.length, scores };
+      return { team, finalScore, sumScore, bestRound, lastRound, bestTime, totalTime, roundsCompleted: scores.length, scores };
     }
   });
 
@@ -72,7 +73,14 @@ const computeRankings = async (competition, teams) => {
   } else {
     results.sort((a, b) => {
       if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
-      if (a.bestTime !== b.bestTime) return a.bestTime - b.bestTime;
+      // SUM ranking: tiebreak by total time (lowest wins); others: best single-round time
+      if (competition.rankingMethod === 'SUM') {
+        const tA = a.totalTime || Infinity;
+        const tB = b.totalTime || Infinity;
+        if (tA !== tB) return tA - tB;
+      } else {
+        if (a.bestTime !== b.bestTime) return a.bestTime - b.bestTime;
+      }
       return 0;
     });
   }
