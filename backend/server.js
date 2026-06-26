@@ -38,6 +38,11 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Standalone pages (must be before SPA catch-all)
+app.get('/live-score-1', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/live-score-1.html'));
+});
+
 // Serve frontend for any other route (SPA support)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
