@@ -1089,6 +1089,7 @@ function calcPreviewScore(compId) {
     if (cr.type === 'boolean') {
       if (el.checked) total += cr.isPenalty ? -cr.points : cr.points;
     } else {
+      if (cr.isInfo) return;
       const val = parseFloat(el.value) || 0;
       total += cr.isPenalty ? -val : val;
     }
