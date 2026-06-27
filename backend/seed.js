@@ -77,7 +77,8 @@ const competitions = [
       { key: 'blue_correct', label: 'กระป๋องสีน้ำเงิน (ก้านยาว) วางถูกที่', type: 'number', pointsPerUnit: 10 },
       { key: 'green_correct', label: 'กระป๋องสีเขียว (ส่งขาย) วางถูกที่', type: 'number', pointsPerUnit: 10 },
       { key: 'checkpoint_penalty', label: 'ผ่านจุดห้าม (ปรับ)', type: 'number', pointsPerUnit: 10, isPenalty: true },
-      { key: 'return_finish', label: 'กลับจุด Finish สำเร็จ', type: 'boolean', points: 20 }
+      { key: 'return_finish_complete', label: 'กลับจุด Finish สำเร็จ (ภารกิจสมบูรณ์)', type: 'boolean', points: 20 },
+      { key: 'return_finish_incomplete', label: 'กลับจุด Finish สำเร็จ (ภารกิจไม่สมบูรณ์)', type: 'boolean', points: 10 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 3
   },
