@@ -20,7 +20,9 @@ const calculateScore = (competition, details) => {
       }
     } else if (criterion.type === 'number') {
       const numVal = Number(val) || 0;
-      total += criterion.isPenalty ? -numVal : numVal;
+      const ppu = criterion.pointsPerUnit ?? 1;
+      const pts = numVal * ppu;
+      total += criterion.isPenalty ? -pts : pts;
     }
   }
   return total;
