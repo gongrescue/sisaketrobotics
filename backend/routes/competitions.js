@@ -75,4 +75,19 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   }
 });
 
+// PATCH /api/competitions/:id/criteria — replace scoringCriteria (admin only)
+router.patch('/:id/criteria', protect, adminOnly, async (req, res) => {
+  try {
+    const comp = await Competition.findByIdAndUpdate(
+      req.params.id,
+      { $set: { scoringCriteria: req.body.scoringCriteria } },
+      { new: true, runValidators: true }
+    );
+    if (!comp) return res.status(404).json({ success: false, message: 'ไม่พบรายการ' });
+    res.json({ success: true, data: comp });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;
