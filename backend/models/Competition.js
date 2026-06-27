@@ -10,6 +10,7 @@ const scoringCriteriaSchema = new mongoose.Schema({
   maxValue: Number,
   isBonus: { type: Boolean, default: false },
   isPenalty: { type: Boolean, default: false },
+  isInfo: { type: Boolean, default: false },
   description: String,
   remark: String
 }, { _id: false });

@@ -19,6 +19,7 @@ const calculateScore = (competition, details) => {
         total += criterion.isPenalty ? -criterion.points : criterion.points;
       }
     } else if (criterion.type === 'number') {
+      if (criterion.isInfo) continue;
       const numVal = Number(val) || 0;
       total += criterion.isPenalty ? -numVal : numVal;
     }
