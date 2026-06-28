@@ -300,15 +300,7 @@ const competitions = [
     category: 'manual', ageGroup: '≤15', scoringType: 'POINT', rankingMethod: 'BEST',
     totalRounds: 1, timePerRoundSeconds: 300, setupTimeSeconds: 30,
     scoringCriteria: [
-      { key: 'climbed_stairs', label: 'ปีนบันไดได้ (20 คะแนน)', type: 'boolean', points: 20 },
-      { key: 'start_point_2', label: 'วางที่จุดเริ่ม 2 ได้ (ไม่ปีน 10 คะแนน)', type: 'boolean', points: 10 },
-      { key: 'can_picked', label: 'หยิบกระป๋องออกจากจุด (กระป๋อง)', type: 'number', pointsPerUnit: 5 },
-      { key: 'can_placed', label: 'วางกระป๋องสำเร็จ (กระป๋อง)', type: 'number', pointsPerUnit: 10 },
-      { key: 'pingpong_picked', label: 'หยิบลูกปิงปอง (ลูก)', type: 'number', pointsPerUnit: 5 },
-      { key: 'pingpong_placed', label: 'วางลูกปิงปองสำเร็จ (ลูก)', type: 'number', pointsPerUnit: 5 },
-      { key: 'pvc_passed', label: 'ผ่านท่อ PVC ครึ่ง', type: 'boolean', points: 20 },
-      { key: 'survivor_rescued', label: 'ช่วยผู้ประสบภัย (ตุ๊กตา)', type: 'boolean', points: 5 },
-      { key: 'returned_to_start', label: 'กลับถึงจุดเริ่มต้น', type: 'boolean', points: 50 }
+      { key: 'total_score', label: 'คะแนนรวม', type: 'number', pointsPerUnit: 1 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 15
   },
