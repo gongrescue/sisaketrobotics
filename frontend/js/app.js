@@ -2116,62 +2116,65 @@ async function printScoresheet() {
 
     const criteriaRows = comp.scoringCriteria?.map(cr => {
       const hint = cr.remark
-        ? `<span style="font-size:9pt;color:#666"> (${cr.remark})</span>`
+        ? `<span style="font-size:11pt;color:#666"> (${cr.remark})</span>`
         : cr.pointsPerUnit
-          ? `<span style="font-size:9pt;color:#666"> (${cr.pointsPerUnit} คะแนน/หน่วย)</span>`
+          ? `<span style="font-size:11pt;color:#666"> (${cr.pointsPerUnit} คะแนน/หน่วย)</span>`
           : '';
       return `<tr>
-        <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">${cr.label}${hint}${cr.isPenalty ? ' <b style="color:#c00">[หัก]</b>' : ''}</td>
-        <td style="border:1px solid #ccc;width:60px"></td>
-        <td style="border:1px solid #ccc;width:60px"></td>
-        <td style="border:1px solid #ccc;width:60px"></td>
+        <td style="padding:10px 12px;border:1px solid #ccc;font-size:13pt">${cr.label}${hint}${cr.isPenalty ? ' <b style="color:#c00">[หัก]</b>' : ''}</td>
+        <td style="border:1px solid #ccc;width:90px"></td>
+        <td style="border:1px solid #ccc;width:90px"></td>
+        <td style="border:1px solid #ccc;width:90px"></td>
       </tr>`;
     }).join('') || '';
 
     const roundHeaders = Array.from({ length: comp.totalRounds || 3 }, (_, i) =>
-      `<th style="border:1px solid #ccc;padding:5px;text-align:center;width:60px;background:#f5f5f5">รอบ ${i + 1}</th>`
+      `<th style="border:1px solid #ccc;padding:8px;text-align:center;width:90px;background:#f5f5f5;font-size:13pt">รอบ ${i + 1}</th>`
     ).join('');
 
-    const pages = teams.map(team => `
+    const buildPage = (teamInfo, isBlank = false) => `
       <div class="page">
-        <div style="border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:10px">
-          <div style="font-size:9pt;color:#555;margin-bottom:2px">แบบบันทึกคะแนน — Sisaket Robotics 2026</div>
-          <div style="font-size:13pt;font-weight:700">${comp.name}</div>
-          <div style="font-size:9pt;color:#555;margin-top:2px">กลุ่มอายุ: ${comp.ageGroup || '-'} &nbsp;|&nbsp; จำนวนรอบ: ${comp.totalRounds} รอบ &nbsp;|&nbsp; เวลาต่อรอบ: ${comp.timePerRoundSeconds || 0} วินาที</div>
+        <div style="border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-end">
+          <div>
+            <div style="font-size:11pt;color:#555;margin-bottom:3px">แบบบันทึกคะแนน — Sisaket Robotics 2026</div>
+            <div style="font-size:16pt;font-weight:700">${comp.name}</div>
+            <div style="font-size:11pt;color:#555;margin-top:3px">กลุ่มอายุ: ${comp.ageGroup || '-'} &nbsp;|&nbsp; จำนวนรอบ: ${comp.totalRounds} รอบ &nbsp;|&nbsp; เวลาต่อรอบ: ${comp.timePerRoundSeconds || 0} วินาที</div>
+          </div>
         </div>
+        ${isBlank ? `<div style="text-align:center;font-size:11pt;color:#888;margin-bottom:10px;border:1px dashed #bbb;padding:5px;border-radius:4px">⚠️ หน้าสำรอง — สำหรับทีมที่ลงทะเบียนเพิ่มเติม</div>` : ''}
 
-        <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+        <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
           <tr>
-            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>หมายเลขทีม</b></td>
-            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt;font-weight:700">${team.teamNumber || '-'}</td>
-            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>ชื่อทีม</b></td>
-            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt;font-weight:700">${team.teamName || '-'}</td>
+            <td style="padding:8px 12px;border:1px solid #ccc;background:#f5f5f5;font-size:12pt;width:20%"><b>หมายเลขทีม</b></td>
+            <td style="padding:8px 12px;border:1px solid #ccc;font-size:14pt;font-weight:700;width:20%">${teamInfo.teamNumber || ''}</td>
+            <td style="padding:8px 12px;border:1px solid #ccc;background:#f5f5f5;font-size:12pt;width:15%"><b>ชื่อทีม</b></td>
+            <td style="padding:8px 12px;border:1px solid #ccc;font-size:14pt;font-weight:700">${teamInfo.teamName || ''}</td>
           </tr>
           <tr>
-            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt"><b>โรงเรียน</b></td>
-            <td colspan="3" style="padding:4px 8px;border:1px solid #ccc;font-size:10pt">${team.schoolName || '-'}</td>
+            <td style="padding:8px 12px;border:1px solid #ccc;background:#f5f5f5;font-size:12pt"><b>โรงเรียน</b></td>
+            <td colspan="3" style="padding:8px 12px;border:1px solid #ccc;font-size:13pt">${teamInfo.schoolName || ''}</td>
           </tr>
         </table>
 
-        <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+        <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
           <thead>
             <tr>
-              <th style="border:1px solid #ccc;padding:6px 8px;text-align:left;background:#f5f5f5;font-size:10pt">เกณฑ์การให้คะแนน</th>
+              <th style="border:1px solid #ccc;padding:10px 12px;text-align:left;background:#f5f5f5;font-size:13pt">เกณฑ์การให้คะแนน</th>
               ${roundHeaders}
             </tr>
           </thead>
           <tbody>
             ${criteriaRows}
             <tr style="background:#fffde7">
-              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt;font-weight:700">คะแนนรวม</td>
+              <td style="padding:10px 12px;border:1px solid #ccc;font-size:13pt;font-weight:700">คะแนนรวม</td>
               ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
             </tr>
             <tr>
-              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">เวลาที่ใช้ (วินาที)</td>
+              <td style="padding:10px 12px;border:1px solid #ccc;font-size:13pt">เวลาที่ใช้ (วินาที)</td>
               ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
             </tr>
             <tr>
-              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">คะแนนโบนัส</td>
+              <td style="padding:10px 12px;border:1px solid #ccc;font-size:13pt">คะแนนโบนัส</td>
               ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
             </tr>
           </tbody>
@@ -2179,78 +2182,20 @@ async function printScoresheet() {
 
         <table style="width:100%;border-collapse:collapse">
           <tr>
-            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
-              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อกรรมการ</div>
-              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
+            <td style="padding:8px 12px;border:1px solid #ccc;width:50%;text-align:center">
+              <div style="font-size:12pt;color:#555;margin-bottom:36px">ลายมือชื่อกรรมการ</div>
+              <div style="border-top:1px solid #333;padding-top:6px;font-size:12pt">( .................................................. )</div>
             </td>
-            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
-              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อตัวแทนทีม</div>
-              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
-            </td>
-          </tr>
-        </table>
-      </div>`).join('');
-
-    // หน้าสำรอง: ไม่ระบุชื่อทีม สำหรับทีมที่มาเพิ่ม
-    const blankPage = `
-      <div class="page">
-        <div style="border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:10px">
-          <div style="font-size:9pt;color:#555;margin-bottom:2px">แบบบันทึกคะแนน — Sisaket Robotics 2026</div>
-          <div style="font-size:13pt;font-weight:700">${comp.name}</div>
-          <div style="font-size:9pt;color:#555;margin-top:2px">กลุ่มอายุ: ${comp.ageGroup || '-'} &nbsp;|&nbsp; จำนวนรอบ: ${comp.totalRounds} รอบ &nbsp;|&nbsp; เวลาต่อรอบ: ${comp.timePerRoundSeconds || 0} วินาที</div>
-        </div>
-        <div style="text-align:center;font-size:9pt;color:#888;margin-bottom:8px;border:1px dashed #bbb;padding:4px;border-radius:4px">⚠️ หน้าสำรอง — สำหรับทีมที่ลงทะเบียนเพิ่มเติม</div>
-
-        <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-          <tr>
-            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>หมายเลขทีม</b></td>
-            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt"></td>
-            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt;width:25%"><b>ชื่อทีม</b></td>
-            <td style="padding:4px 8px;border:1px solid #ccc;font-size:11pt"></td>
-          </tr>
-          <tr>
-            <td style="padding:4px 8px;border:1px solid #ccc;background:#f5f5f5;font-size:9pt"><b>โรงเรียน</b></td>
-            <td colspan="3" style="padding:4px 8px;border:1px solid #ccc;font-size:10pt"></td>
-          </tr>
-        </table>
-
-        <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
-          <thead>
-            <tr>
-              <th style="border:1px solid #ccc;padding:6px 8px;text-align:left;background:#f5f5f5;font-size:10pt">เกณฑ์การให้คะแนน</th>
-              ${roundHeaders}
-            </tr>
-          </thead>
-          <tbody>
-            ${criteriaRows}
-            <tr style="background:#fffde7">
-              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt;font-weight:700">คะแนนรวม</td>
-              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
-            </tr>
-            <tr>
-              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">เวลาที่ใช้ (วินาที)</td>
-              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
-            </tr>
-            <tr>
-              <td style="padding:6px 8px;border:1px solid #ccc;font-size:10pt">คะแนนโบนัส</td>
-              ${Array.from({ length: comp.totalRounds || 3 }, () => `<td style="border:1px solid #ccc"></td>`).join('')}
-            </tr>
-          </tbody>
-        </table>
-
-        <table style="width:100%;border-collapse:collapse">
-          <tr>
-            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
-              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อกรรมการ</div>
-              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
-            </td>
-            <td style="padding:4px 8px;border:1px solid #ccc;width:50%;text-align:center">
-              <div style="font-size:9pt;color:#555;margin-bottom:28px">ลายมือชื่อตัวแทนทีม</div>
-              <div style="border-top:1px solid #333;padding-top:4px;font-size:9pt">( .................................................. )</div>
+            <td style="padding:8px 12px;border:1px solid #ccc;width:50%;text-align:center">
+              <div style="font-size:12pt;color:#555;margin-bottom:36px">ลายมือชื่อตัวแทนทีม</div>
+              <div style="border-top:1px solid #333;padding-top:6px;font-size:12pt">( .................................................. )</div>
             </td>
           </tr>
         </table>
       </div>`;
+
+    const pages = teams.map(team => buildPage(team)).join('');
+    const blankPage = buildPage({}, true);
 
     const html = `<!DOCTYPE html>
 <html lang="th">
@@ -2260,12 +2205,12 @@ async function printScoresheet() {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; background: #fff; color: #111; }
-  .page { width: 210mm; min-height: 270mm; padding: 12mm 14mm; page-break-after: always; }
+  .page { width: 210mm; min-height: 290mm; padding: 12mm 14mm; page-break-after: always; }
   .page:last-child { page-break-after: avoid; }
   @media print {
     body { margin: 0; }
     .page { margin: 0; padding: 10mm 12mm; }
-    @page { size: A4; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
   }
 </style>
 </head>
