@@ -133,12 +133,10 @@ const competitions = [
     category: 'autonomous', ageGroup: '≤18', scoringType: 'POINT', rankingMethod: 'SUM',
     totalRounds: 3, timePerRoundSeconds: 180, setupTimeSeconds: 30,
     scoringCriteria: [
+      { key: 'retry_count',       label: 'จำนวนครั้งที่ Retry',       type: 'number', pointsPerUnit: 0, isInfo: true },
       { key: 'checkpoint_passed', label: 'จุด Checkpoint ที่ผ่านได้', type: 'number', pointsPerUnit: 5 },
-      { key: 'bag_red', label: 'ถุงยังชีพสีแดงวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_yellow', label: 'ถุงยังชีพสีเหลืองวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_blue', label: 'ถุงยังชีพสีน้ำเงินวางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'bag_green', label: 'ถุงยังชีพสีเขียววางถูก', type: 'number', pointsPerUnit: 15 },
-      { key: 'return_start', label: 'กลับจุด START สำเร็จ', type: 'boolean', points: 20 }
+      { key: 'bag_correct',       label: 'ถุงยังชีพวางถูก',           type: 'number', pointsPerUnit: 10 },
+      { key: 'return_start',      label: 'กลับจุด START สำเร็จ',      type: 'boolean', points: 20 }
     ],
     maxTeams: 40, status: 'registration', sortOrder: 6
   },

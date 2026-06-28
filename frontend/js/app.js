@@ -1035,7 +1035,7 @@ async function onCompetitionChange() {
   if (completedField) completedField.style.display = isTime ? '' : 'none';
   if (distanceField) distanceField.style.display = 'none';
   const retriesField = document.getElementById('retriesField');
-  if (retriesField) retriesField.style.display = comp.code?.startsWith('RESCUE_M') ? '' : 'none';
+  if (retriesField) retriesField.style.display = comp.code === 'RESCUE_M15' ? '' : 'none';
 
   // Set rounds
   roundSelect.innerHTML = Array.from({length: comp.totalRounds}, (_, i) =>
@@ -1452,7 +1452,7 @@ async function loadScoresTable() {
 // ตรวจว่าเป็นรายการเที่ยวเมืองศรีสะเกษหรือไม่
 function isTourComp(comp) {
   if (!comp) return false;
-  if (comp.code?.startsWith('RESCUE_M')) return true;
+  if (comp.code === 'RESCUE_M15') return true;
   return typeof comp.name === 'string' && comp.name.includes('เที่ยวเมืองศรีสะเกษ');
 }
 
