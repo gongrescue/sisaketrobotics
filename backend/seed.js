@@ -345,10 +345,10 @@ const competitions = [
     name: 'หุ่นยนต์ Line Fast "เจ้าความเร็ว" รุ่นทั่วไป (ไม่จำกัดอายุ)',
     nameEn: 'Line Fast Robot Open',
     description: 'หุ่นยนต์วิ่งตามเส้น รุ่นทั่วไป ไม่จำกัดอายุ ไม่จำกัดบอร์ด',
-    category: 'line_following', ageGroup: 'open', scoringType: 'TIME', rankingMethod: 'BEST',
+    category: 'line_following', ageGroup: 'open', scoringType: 'POINT', rankingMethod: 'BEST',
     totalRounds: 3, timePerRoundSeconds: 180, setupTimeSeconds: 0,
     scoringCriteria: [
-      { key: 'checkpoints', label: 'จุดผ่านได้ (1-10)', type: 'number', pointsPerUnit: 0 }
+      { key: 'checkpoints', label: 'จุดผ่านได้ (1-10)', type: 'number', pointsPerUnit: 1 }
     ],
     maxTeams: 30, status: 'registration', sortOrder: 18
   }
