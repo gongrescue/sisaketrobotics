@@ -144,6 +144,7 @@
       <button class="tab-btn"        id="tabBtn-matches"    onclick="switchAdminTab('matches')"    style="display:none">⚔️ Battle</button>
       <button class="tab-btn"        id="tabBtn-users"      onclick="switchAdminTab('users')"      style="display:none">👤 ผู้ใช้งาน</button>
       <button class="tab-btn"        id="tabBtn-scoresheet" onclick="switchAdminTab('scoresheet')" style="display:none">🖨️ แบบบันทึก</button>
+      <button class="tab-btn"        id="tabBtn-export"     onclick="switchAdminTab('export')"     style="display:none">📥 Export Excel</button>
     </div>
 
     <!-- TEAMS TAB -->
@@ -303,6 +304,15 @@
       <div id="scoresheetInfo" style="margin-top:1rem;color:var(--text-muted);font-size:0.85rem;text-align:center"></div>
     </div>
 
+    <!-- EXPORT TAB -->
+    <div id="adminTab-export" class="admin-tab-content">
+      <div style="padding:1rem 0">
+        <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem">Export ตารางคะแนนทุกรายการเป็นไฟล์ Excel (.xlsx) แต่ละรายการจะอยู่ใน sheet แยกกัน</p>
+        <button class="btn btn-primary" onclick="exportRankingsExcel()" id="exportExcelBtn">📥 Export ตารางคะแนน (Excel)</button>
+        <div id="exportStatus" style="margin-top:1rem;color:var(--text-muted);font-size:0.85rem"></div>
+      </div>
+    </div>
+
     <!-- USERS TAB -->
     <div id="adminTab-users" class="admin-tab-content">
       <div class="admin-toolbar">
@@ -459,6 +469,7 @@
 <!-- Toast Notification -->
 <div id="toast" class="toast"></div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="js/leaderboard.js"></script>
 <script src="js/app.js"></script>
 </body>

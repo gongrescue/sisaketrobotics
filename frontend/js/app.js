@@ -188,12 +188,14 @@ function updateNavForAuth(loggedIn) {
     const scoreTableTabBtn  = document.getElementById('tabBtn-scoreTable');
     const matchesTabBtn     = document.getElementById('tabBtn-matches');
     const usersTabBtn       = document.getElementById('tabBtn-users');
+    const exportTabBtn      = document.getElementById('tabBtn-export');
     const scoresheetTabBtn  = document.getElementById('tabBtn-scoresheet');
     if (teamsTabBtn)      teamsTabBtn.style.display      = admin ? '' : 'none';
     if (scoreTableTabBtn) scoreTableTabBtn.style.display = admin ? '' : 'none';
     if (matchesTabBtn)    matchesTabBtn.style.display    = admin ? '' : 'none';
     if (usersTabBtn)      usersTabBtn.style.display      = admin ? '' : 'none';
     if (scoresheetTabBtn) scoresheetTabBtn.style.display = admin ? '' : 'none';
+    if (exportTabBtn)     exportTabBtn.style.display     = admin ? '' : 'none';
     const badge = document.getElementById('userBadge');
     if (badge) badge.textContent = `👤 ${currentUser.name} (${getRoleLabel(currentUser.role)})`;
 
@@ -490,7 +492,7 @@ function loadAdmin() {
 }
 
 // Tabs that admin-only users can access. Non-admin users are locked to 'scores'.
-const ADMIN_ONLY_TABS = ['teams', 'matches', 'users', 'scoreTable', 'scoresheet'];
+const ADMIN_ONLY_TABS = ['teams', 'matches', 'users', 'scoreTable', 'scoresheet', 'export'];
 
 const JUDGE_ALLOWED_TABS = ['scores'];
 
@@ -519,6 +521,7 @@ function switchAdminTabDirect(tab) {
   else if (tab === 'matches') loadMatchFilters();
   else if (tab === 'users') loadUsers();
   else if (tab === 'scoresheet') loadScoresheetTab();
+  else if (tab === 'export') { /* ready on demand */ }
 }
 
 function switchAdminTab(tab) {
@@ -2222,6 +2225,45 @@ async function printScoresheet() {
     win.onload = () => win.print();
   } catch (e) {
     showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
+  }
+}
+
+// ─── EXPORT EXCEL ─────────────────────────────────────────────
+async function exportRankingsExcel() {
+  const btn    = document.getElementById('exportExcelBtn');
+  const status = document.getElementById('exportStatus');
+  btn.disabled = true;
+  status.textContent = '⏳ กำลังโหลดข้อมูล...';
+  try {
+    const compsRes = await apiFetch('/competitions');
+    const comps    = (compsRes.data || []).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    const wb       = XLSX.utils.book_new();
+
+    for (const comp of comps) {
+      try {
+        const res = await apiFetch(`/rankings/${comp._id}`);
+        const rows = (res.data || []).map(r => ({
+          'ลำดับ':      r.rank,
+          'ชื่อทีม':    r.team?.teamName  || '-',
+          'โรงเรียน':   r.team?.schoolName || '-',
+          'คะแนนรวม':   r.finalScore ?? r.sumScore ?? 0,
+          'เวลารวม (วินาที)': r.totalTime ?? r.bestScore ?? 0
+        }));
+        if (rows.length === 0) rows.push({ 'ลำดับ': '-', 'ชื่อทีม': 'ยังไม่มีข้อมูล', 'โรงเรียน': '', 'คะแนนรวม': '', 'เวลารวม (วินาที)': '' });
+        const ws = XLSX.utils.json_to_sheet(rows);
+        // column widths
+        ws['!cols'] = [{ wch: 8 }, { wch: 28 }, { wch: 32 }, { wch: 12 }, { wch: 18 }];
+        const sheetName = (comp.name || comp.code).replace(/[:\\\/\?\*\[\]]/g, '').substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      } catch { /* skip comp if error */ }
+    }
+
+    XLSX.writeFile(wb, `sisaket-robotics-2026-rankings.xlsx`);
+    status.textContent = `✅ Export สำเร็จ ${comps.length} รายการ`;
+  } catch (e) {
+    status.textContent = '❌ เกิดข้อผิดพลาด: ' + e.message;
+  } finally {
+    btn.disabled = false;
   }
 }
 
