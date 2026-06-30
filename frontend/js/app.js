@@ -2237,29 +2237,58 @@ async function exportRankingsExcel() {
   try {
     const compsRes = await apiFetch('/competitions');
     const comps    = (compsRes.data || []).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    const wb       = XLSX.utils.book_new();
 
-    for (const comp of comps) {
+    // โหลดข้อมูลทุกรายการก่อน
+    const sheets = [];
+    for (let i = 0; i < comps.length; i++) {
+      const comp = comps[i];
+      status.textContent = `⏳ โหลดข้อมูล ${i + 1}/${comps.length}: ${comp.code}`;
       try {
-        const res = await apiFetch(`/rankings/${comp._id}`);
-        const rows = (res.data || []).map(r => ({
-          'ลำดับ':      r.rank,
-          'ชื่อทีม':    r.team?.teamName  || '-',
-          'โรงเรียน':   r.team?.schoolName || '-',
-          'คะแนนรวม':   r.finalScore ?? r.sumScore ?? 0,
+        const res  = await apiFetch(`/rankings/${comp._id}`);
+        const data = res.data || [];
+        if (data.length === 0) continue;
+        const rows = data.map(r => ({
+          'ลำดับ':            r.rank,
+          'ชื่อทีม':          r.team?.teamName   || '-',
+          'โรงเรียน':         r.team?.schoolName  || '-',
+          'คะแนนรวม':         r.finalScore ?? r.sumScore ?? 0,
           'เวลารวม (วินาที)': r.totalTime ?? r.bestScore ?? 0
         }));
-        if (rows.length === 0) rows.push({ 'ลำดับ': '-', 'ชื่อทีม': 'ยังไม่มีข้อมูล', 'โรงเรียน': '', 'คะแนนรวม': '', 'เวลารวม (วินาที)': '' });
-        const ws = XLSX.utils.json_to_sheet(rows);
-        // column widths
-        ws['!cols'] = [{ wch: 8 }, { wch: 28 }, { wch: 32 }, { wch: 12 }, { wch: 18 }];
-        const sheetName = (comp.name || comp.code).replace(/[:\\\/\?\*\[\]]/g, '').substring(0, 31);
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      } catch { /* skip comp if error */ }
+        sheets.push({ code: comp.code, name: comp.name, rows });
+      } catch { /* skip */ }
     }
 
-    XLSX.writeFile(wb, `sisaket-robotics-2026-rankings.xlsx`);
-    status.textContent = `✅ Export สำเร็จ ${comps.length} รายการ`;
+    if (sheets.length === 0) {
+      status.textContent = '⚠️ ไม่มีข้อมูลคะแนน';
+      btn.disabled = false;
+      return;
+    }
+
+    // แบ่งไฟล์ละ 20 sheets เพื่อหลีกเลี่ยงปัญหา
+    const SHEETS_PER_FILE = 20;
+    const fileCount = Math.ceil(sheets.length / SHEETS_PER_FILE);
+
+    for (let f = 0; f < fileCount; f++) {
+      const wb    = XLSX.utils.book_new();
+      const slice = sheets.slice(f * SHEETS_PER_FILE, (f + 1) * SHEETS_PER_FILE);
+
+      for (const { code, name, rows } of slice) {
+        const ws = XLSX.utils.json_to_sheet([]);
+        // แถวแรก = ชื่อรายการ
+        XLSX.utils.sheet_add_aoa(ws, [[name]], { origin: 'A1' });
+        // แถวถัดไป = header + data
+        XLSX.utils.sheet_add_json(ws, rows, { origin: 'A2' });
+        ws['!cols'] = [{ wch: 8 }, { wch: 28 }, { wch: 34 }, { wch: 12 }, { wch: 18 }];
+        // ชื่อ sheet = code (unique, สั้น, ไม่ซ้ำ)
+        XLSX.utils.book_append_sheet(wb, ws, code.substring(0, 31));
+      }
+
+      const suffix = fileCount > 1 ? `-part${f + 1}of${fileCount}` : '';
+      XLSX.writeFile(wb, `sisaket-robotics-2026-rankings${suffix}.xlsx`);
+      if (f < fileCount - 1) await new Promise(r => setTimeout(r, 600));
+    }
+
+    status.textContent = `✅ Export สำเร็จ ${sheets.length} รายการ${fileCount > 1 ? ` แบ่งเป็น ${fileCount} ไฟล์` : ''}`;
   } catch (e) {
     status.textContent = '❌ เกิดข้อผิดพลาด: ' + e.message;
   } finally {
